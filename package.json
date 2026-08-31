@@ -1,0 +1,21 @@
+{
+  "name": "tutor-ia-itm",
+  "version": "1.0.0",
+  "description": "Aplicación web educativa para Matemáticas Básicas con integración de un modelo de lenguaje.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "author": "Carlos Méndez",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.22.2",
+    "mammoth": "^1.12.2",
+    "multer": "^2.3.0",
+    "pdf-parse": "^2.4.5"
+  },
+  "keywords": [],
+  "type": "commonjs"
+}

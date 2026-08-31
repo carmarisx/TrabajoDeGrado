@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutor IA - Matemáticas Básicas ITM</title>
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Renderizado de Markdown (títulos, negritas, tablas, listas) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Limpieza de HTML generado (seguridad) -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+    <!-- Renderizado de fórmulas matemáticas (LaTeX) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+</head>
+
+<body>
+    <!-- ============================= -->
+    <!-- MENÚ LATERAL -->
+    <!-- ============================= -->
+    <aside class="sidebar">
+        <div class="sidebar-content">
+
+            <!-- Logo ITM -->
+            <div class="brand">
+                <img src="img/logo-itm.png" alt="Logo ITM" class="logo">
+                <p class="brand-text">Reacreditada en Alta Calidad</p>
+            </div>
+
+            <!-- Selección de materia -->
+            <div class="materias-section">
+                <h2>Selección de materia</h2>
+                <button class="btn-materia" id="btn-matematicas" onclick="seleccionarMateria()">Matemáticas Básicas</button>
+            </div>
+
+            <!-- Lista de tópicos -->
+            <div id="seccion-topicos" class="hidden">
+                <h2>Contenido del curso</h2>
+                <div id="lista-topicos">
+                    <!-- Los tópicos se generan con JavaScript -->
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Autor -->
+        <div class="author">
+            <span>Desarrollado por</span>
+            <strong>Carlos David Méndez Aristizábal</strong>
+        </div>
+    </aside>
+
+    <!-- ============================= -->
+    <!-- CONTENIDO PRINCIPAL -->
+    <!-- ============================= -->
+    <div class="main-wrapper">
+        <main class="main-content">
+
+            <!-- Header -->
+            <header class="header">
+                <h1 id="header-title">Selecciona un tema para comenzar</h1>
+                <div class="header-actions">
+                    <button id="btn-tema" class="theme-toggle-btn" onclick="alternarTema()"
+                        title="Cambiar entre modo claro y oscuro"
+                        aria-label="Cambiar entre modo claro y oscuro">🌙</button>
+                    <span class="badge hidden" id="ai-badge">IA activa</span>
+                </div>
+            </header>
+
+            <!-- Chat -->
+            <div class="chat-container" id="chat-container">
+                <div class="welcome-message">
+                    <h2>Bienvenido al Tutor IA</h2>
+                    <p>Selecciona <strong>Matemáticas Básicas</strong> y posteriormente elige uno de los temas disponibles para comenzar.</p>
+                    <p>La aplicación generará automáticamente un contexto para orientar la consulta al modelo de inteligencia artificial.</p>
+                </div>
+            </div>
+
+            <!-- Indicador de escritura -->
+            <div id="typing" class="typing-indicator hidden">
+                <span>La IA está escribiendo</span>
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+            </div>
+
+            <!-- Área para escribir -->
+            <div class="input-area hidden" id="input-area">
+
+                <!-- Campo de texto -->
+                <input type="text" id="user-input"
+                    placeholder="Escribe tu duda, pide un ejemplo o solicita un ejercicio..."
+                    autocomplete="off">
+
+                <!-- Botón enviar -->
+                <button id="btn-enviar" onclick="enviarMensajeUsuario()">Enviar</button>
+
+            </div>
+
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

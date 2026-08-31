@@ -59,19 +59,28 @@ const topicosMatematicas = [
 
 
 /* ========================================= */
-/* HISTORIAL DEL CHAT */
+/* ESTADO DE LA CONVERSACIÓN POR TÓPICO */
 /* ========================================= */
 
-let historialChat = [];
-
-/* Guarda, por cada tópico ya visitado en esta sesión (mientras
-   no recargues la página), tanto el historial que se envía a la
-   IA como los mensajes ya mostrados en pantalla, para poder
-   restaurarlos al volver a ese tópico sin reiniciar la conversación. */
+/* Por cada tópico ya visitado en esta sesión se guarda:
+   - historialChat: lo que se le envía a la IA (system/user/assistant)
+   - mensajesUI: lo que se muestra en pantalla (para restaurarlo)
+   - estado: 'nuevo' | 'pendiente' | 'listo' | 'error'
+     · 'pendiente' = hay una respuesta de la IA que todavía no ha
+       llegado (o que se canceló a mitad de camino porque el usuario
+       cambió de tópico). Si el usuario vuelve a este tópico estando
+       en 'pendiente', se vuelve a pedir la respuesta automáticamente,
+       en vez de dejar el chat vacío. */
 
 const historialesPorTema = {};
 
 let temaActual = null;
+
+/* Solo puede haber UNA petición "viva" a la vez. Cada vez que se iba
+   a lanzar una nueva, se cancela la anterior con AbortController, así
+   nunca se cruzan dos respuestas ni se pisa el estado entre tópicos. */
+
+let controladorActual = null;
 
 
 /* ========================================= */
@@ -112,49 +121,11 @@ function seleccionarMateria() {
 
 
 /* ========================================= */
-/* INICIAR CHAT SEGÚN TÓPICO */
+/* CONSTRUCCIÓN DE PROMPTS */
 /* ========================================= */
 
-function iniciarChatTopico(topico, btnElement) {
-    document.querySelectorAll(".btn-topico").forEach(boton => {
-        boton.classList.remove("active");
-    });
-
-    btnElement.classList.add("active");
-    document.getElementById("header-title").innerText = `Tema seleccionado: ${topico}`;
-    document.getElementById("input-area").classList.remove("hidden");
-    document.getElementById("ai-badge").classList.remove("hidden");
-
-    temaActual = topico;
-
-    const chatContainer = document.getElementById("chat-container");
-    chatContainer.innerHTML = "";
-
-    /* Si ya habíamos hablado de este tema antes en esta sesión,
-       restauramos la conversación guardada en vez de reiniciarla. */
-
-    if (historialesPorTema[topico]) {
-        historialChat = historialesPorTema[topico].historialChat;
-
-        historialesPorTema[topico].mensajesUI.forEach(msg => {
-            agregarMensajeUI(msg.texto, msg.emisor, { guardar: false });
-        });
-
-        return;
-    }
-
-    /* Primera vez que se visita este tema: se crea su historial */
-
-    historialesPorTema[topico] = {
-        historialChat: [],
-        mensajesUI: []
-    };
-
-    historialChat = historialesPorTema[topico].historialChat;
-
-    historialChat.push({
-        role: "system",
-        content: `
+function construirPromptSistema(topico) {
+    return `
 Eres un tutor virtual de apoyo académico para estudiantes de Matemáticas Básicas del ITM.
 
 El estudiante ha seleccionado el siguiente tema:
@@ -175,16 +146,23 @@ Debes:
 
 No debes simplemente entregar una respuesta final cuando el estudiante esté resolviendo un ejercicio. Debes orientar el proceso y explicar cómo llegar a la solución.
 
-Formato de las fórmulas matemáticas (muy importante):
-- Toda notación matemática (fracciones, conjuntos, símbolos como \\mathbb{N}, \\frac{}{}, \\neq, \\subset, exponentes, raíces, etc.) debe escribirse en formato LaTeX envuelta en delimitadores.
-- Usa \\\\( ... \\\\) para fórmulas dentro de una línea de texto y \\\\[ ... \\\\] para fórmulas destacadas en su propia línea.
-- Nunca escribas comandos de LaTeX sueltos entre paréntesis normales.
-- Si no vas a usar notación LaTeX, escribe la expresión en texto plano simple.
-- Usa tablas en markdown solo cuando ayuden a organizar información y evita poner fórmulas LaTeX complejas dentro de las celdas de una tabla.
-`
-    });
+Cuando sea apropiado, finaliza proponiendo un ejercicio, un ejemplo adicional o preguntando al estudiante qué parte del tema desea profundizar.
 
-    const promptInicial = `
+Idioma y manejo de mensajes fuera de tema (muy importante):
+- Responde SIEMPRE en español, sin importar el contenido o el idioma del mensaje del estudiante.
+- Si el estudiante escribe un saludo, algo casual, una pregunta personal o cualquier cosa que no tenga que ver con Matemáticas Básicas, respóndele brevemente y con amabilidad en español, y redirígelo de vuelta hacia el tema de la materia.
+- Si el estudiante pide algo que no puedas o no debas responder por ser inapropiado, sensible o fuera de tu rol como tutor académico, recházalo de forma breve, respetuosa y en español (nunca en inglés ni con una respuesta genérica sin contexto), y luego invítalo a retomar el tema de Matemáticas Básicas.
+
+Formato de las fórmulas matemáticas (muy importante):
+- Toda notación matemática (fracciones, conjuntos, símbolos como \\mathbb{N}, \\frac{}{}, \\neq, \\subset, exponentes, raíces, etc.) debe escribirse en formato LaTeX envuelta en delimitadores: usa \\( ... \\) para fórmulas dentro de una línea de texto, y \\[ ... \\] para fórmulas destacadas en su propia línea.
+- Nunca escribas comandos de LaTeX sueltos entre paréntesis normales, por ejemplo NO escribas (\\frac{p}{q}); en su lugar escribe \\(\\frac{p}{q}\\).
+- Si no vas a usar notación LaTeX, escribe la expresión en texto plano simple (por ejemplo "p dividido entre q") en vez de mezclar comandos LaTeX sin delimitadores.
+- Usa tablas en markdown solo cuando ayuden a organizar información, y evita poner fórmulas LaTeX complejas dentro de las celdas de una tabla.
+`;
+}
+
+function construirPromptInicial(topico) {
+    return `
 El estudiante seleccionó el tema:
 "${topico}"
 
@@ -199,13 +177,63 @@ La respuesta debe incluir:
 
 Explica la información de manera estructurada y comprensible.
 `;
+}
 
-    historialChat.push({
-        role: "user",
-        content: promptInicial
+
+/* ========================================= */
+/* INICIAR CHAT SEGÚN TÓPICO */
+/* ========================================= */
+
+function iniciarChatTopico(topico, btnElement) {
+    document.querySelectorAll(".btn-topico").forEach(boton => {
+        boton.classList.remove("active");
     });
 
-    solicitarRespuestaIA();
+    btnElement.classList.add("active");
+    document.getElementById("header-title").innerText = `Tema seleccionado: ${topico}`;
+    document.getElementById("input-area").classList.remove("hidden");
+    document.getElementById("ai-badge").classList.remove("hidden");
+
+    temaActual = topico;
+
+    const chatContainer = document.getElementById("chat-container");
+    chatContainer.innerHTML = "";
+
+    /* Si es la primera vez que se visita este tópico, se crea su
+       historial desde cero (system + prompt inicial). Si ya existía,
+       NO se toca su historialChat: puede tener ya una respuesta
+       completa, o puede haber quedado a medias por un cambio de
+       tópico anterior, y eso se resuelve más abajo. */
+
+    if (!historialesPorTema[topico]) {
+        historialesPorTema[topico] = {
+            historialChat: [
+                { role: "system", content: construirPromptSistema(topico) },
+                { role: "user", content: construirPromptInicial(topico) }
+            ],
+            mensajesUI: [],
+            estado: "nuevo"
+        };
+    }
+
+    const entrada = historialesPorTema[topico];
+
+    /* Repintar en pantalla lo que ya se había mostrado antes */
+
+    entrada.mensajesUI.forEach(msg => {
+        agregarMensajeUI(msg.texto, msg.emisor);
+    });
+
+    /* Si el tópico es nuevo, o quedó con una respuesta pendiente
+       (se interrumpió por un cambio de tópico anterior), se
+       (re)lanza la petición a la IA. Si ya está "listo" o terminó
+       en "error", no se vuelve a llamar a la IA automáticamente. */
+
+    if (entrada.estado === "nuevo" || entrada.estado === "pendiente") {
+        solicitarRespuestaIA(topico);
+    } else {
+        actualizarIndicadorCarga();
+    }
 }
 
 
@@ -217,17 +245,19 @@ function enviarMensajeUsuario() {
     const inputElement = document.getElementById("user-input");
     const mensaje = inputElement.value.trim();
 
-    if (mensaje === "") return;
+    if (mensaje === "" || !temaActual) return;
 
-    agregarMensajeUI(mensaje, "user");
+    const topico = temaActual;
+    const entrada = historialesPorTema[topico];
+
+    if (!entrada) return;
+
+    entrada.historialChat.push({ role: "user", content: mensaje });
+    mostrarMensajeDeTema(topico, mensaje, "user");
+
     inputElement.value = "";
 
-    historialChat.push({
-        role: "user",
-        content: mensaje
-    });
-
-    solicitarRespuestaIA();
+    solicitarRespuestaIA(topico);
 }
 
 
@@ -249,6 +279,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 /* ========================================= */
 /* CONVERSIÓN DE TEXTO DE LA IA A HTML */
+/* (markdown + fórmulas matemáticas LaTeX) */
 /* ========================================= */
 
 function convertirTextoIAaHTML(texto) {
@@ -262,35 +293,12 @@ function convertirTextoIAaHTML(texto) {
 
     let textoLimpio = texto;
 
-    textoLimpio = textoLimpio.replace(
-        /\\\[([\s\S]+?)\\\]/g,
-        (_, c) => marcarFormula(c, true)
-    );
-
-    textoLimpio = textoLimpio.replace(
-        /\$\$([\s\S]+?)\$\$/g,
-        (_, c) => marcarFormula(c, true)
-    );
-
-    textoLimpio = textoLimpio.replace(
-        /\\\(([\s\S]+?)\\\)/g,
-        (_, c) => marcarFormula(c, false)
-    );
-
-    textoLimpio = textoLimpio.replace(
-        /\[\s*(\\[a-zA-Z][^\[\]]*)\]/g,
-        (_, c) => marcarFormula(c, true)
-    );
-
-    textoLimpio = textoLimpio.replace(
-        /\(([^()]*\\[a-zA-Z][^()]*)\)/g,
-        (_, c) => marcarFormula(c, false)
-    );
-
-    textoLimpio = textoLimpio.replace(
-        /\$([^$\n]*\\[a-zA-Z][^$\n]*)\$/g,
-        (_, c) => marcarFormula(c, false)
-    );
+    textoLimpio = textoLimpio.replace(/\\\[([\s\S]+?)\\\]/g, (_, c) => marcarFormula(c, true));
+    textoLimpio = textoLimpio.replace(/\$\$([\s\S]+?)\$\$/g, (_, c) => marcarFormula(c, true));
+    textoLimpio = textoLimpio.replace(/\\\(([\s\S]+?)\\\)/g, (_, c) => marcarFormula(c, false));
+    textoLimpio = textoLimpio.replace(/\[\s*(\\[a-zA-Z][^\[\]]*)\]/g, (_, c) => marcarFormula(c, true));
+    textoLimpio = textoLimpio.replace(/\(([^()]*\\[a-zA-Z][^()]*)\)/g, (_, c) => marcarFormula(c, false));
+    textoLimpio = textoLimpio.replace(/\$([^$\n]*\\[a-zA-Z][^$\n]*)\$/g, (_, c) => marcarFormula(c, false));
 
     let html = marked.parse(textoLimpio);
 
@@ -304,9 +312,7 @@ function convertirTextoIAaHTML(texto) {
                 output: "html"
             });
         } catch (e) {
-            renderizado = f.esDisplay
-                ? `[${f.contenido}]`
-                : `(${f.contenido})`;
+            renderizado = f.esDisplay ? `[${f.contenido}]` : `(${f.contenido})`;
         }
 
         html = html.replace(`@@FORMULA_${idx}@@`, renderizado);
@@ -317,12 +323,10 @@ function convertirTextoIAaHTML(texto) {
 
 
 /* ========================================= */
-/* AGREGAR MENSAJE A LA INTERFAZ */
+/* AGREGAR MENSAJE A LA INTERFAZ (solo pinta) */
 /* ========================================= */
 
-function agregarMensajeUI(texto, emisor, opciones = {}) {
-    const guardar = opciones.guardar !== false;
-
+function agregarMensajeUI(texto, emisor) {
     const chatContainer = document.getElementById("chat-container");
     const mensajeDiv = document.createElement("div");
 
@@ -330,10 +334,7 @@ function agregarMensajeUI(texto, emisor, opciones = {}) {
 
     if (emisor === "ai") {
         const htmlCrudo = convertirTextoIAaHTML(texto);
-        const htmlSeguro = DOMPurify.sanitize(htmlCrudo, {
-            ADD_ATTR: ["style"]
-        });
-
+        const htmlSeguro = DOMPurify.sanitize(htmlCrudo, { ADD_ATTR: ["style"] });
         mensajeDiv.innerHTML = htmlSeguro;
     } else {
         mensajeDiv.innerText = texto;
@@ -341,43 +342,119 @@ function agregarMensajeUI(texto, emisor, opciones = {}) {
 
     chatContainer.appendChild(mensajeDiv);
     chatContainer.scrollTop = chatContainer.scrollHeight;
+}
 
-    /* Guardar este mensaje en el historial del tópico actual, para
-       poder reconstruir la conversación al volver a este tópico.
-       (No se guarda cuando estamos restaurando una conversación ya
-       guardada, para no duplicar los mensajes). */
 
-    if (guardar && temaActual && historialesPorTema[temaActual]) {
-        historialesPorTema[temaActual].mensajesUI.push({ texto, emisor });
+/* ========================================= */
+/* GUARDAR + MOSTRAR UN MENSAJE DE UN TÓPICO */
+/* ========================================= */
+
+/* Guarda el mensaje en el historial del tópico al que pertenece
+   (sin importar si el usuario sigue viéndolo o no), y solo lo
+   pinta en pantalla si ese tópico sigue siendo el que está activo.
+   Así, una respuesta "tardía" de un tópico que ya no se está viendo
+   nunca se mezcla con el tópico que el usuario tiene abierto ahora. */
+
+function mostrarMensajeDeTema(topico, texto, emisor) {
+    const entrada = historialesPorTema[topico];
+
+    if (entrada) {
+        entrada.mensajesUI.push({ texto, emisor });
+    }
+
+    if (topico === temaActual) {
+        agregarMensajeUI(texto, emisor);
     }
 }
 
 
 /* ========================================= */
-/* SOLICITAR RESPUESTA A LA IA */
+/* INDICADOR DE "ESCRIBIENDO" / BOTÓN ENVIAR */
 /* ========================================= */
 
-async function solicitarRespuestaIA() {
+/* Se basa únicamente en el estado del tópico que está activo en
+   este momento, así que si una petición vieja de otro tópico
+   termina en segundo plano, no altera lo que ve el usuario ahora. */
+
+function actualizarIndicadorCarga() {
     const typingIndicator = document.getElementById("typing");
     const btnEnviar = document.getElementById("btn-enviar");
 
-    typingIndicator.classList.remove("hidden");
-    btnEnviar.disabled = true;
+    const entrada = temaActual ? historialesPorTema[temaActual] : null;
+    const cargando = !!entrada && entrada.estado === "pendiente";
+
+    typingIndicator.classList.toggle("hidden", !cargando);
+    btnEnviar.disabled = cargando;
+
+    if (!cargando) {
+        document.getElementById("user-input").focus();
+    }
+}
+
+
+/* ========================================= */
+/* SOLICITAR RESPUESTA A LA IA (con cancelación y "debounce") */
+/* ========================================= */
+
+/* Si el usuario cambia de tópico muy rápido varias veces seguidas,
+   no tiene sentido disparar una petición real a la IA por cada clic
+   intermedio (eso gasta tokens y puede agotar el límite por minuto
+   del proveedor). Por eso se espera un instante corto antes de
+   enviar la petición de verdad: si en ese instante se vuelve a
+   pedir otra respuesta (otro cambio de tópico), se cancela el envío
+   pendiente sin haber gastado nada todavía. */
+
+const ESPERA_ANTES_DE_ENVIAR_MS = 400;
+
+let temporizadorPeticion = null;
+
+function solicitarRespuestaIA(topico) {
+    const entrada = historialesPorTema[topico];
+
+    if (!entrada) return;
+
+    /* Cancelar un envío que todavía no había salido */
+
+    if (temporizadorPeticion) {
+        clearTimeout(temporizadorPeticion);
+        temporizadorPeticion = null;
+    }
+
+    /* Cancelar una petición que ya está en curso (de este mismo
+       tópico o de otro) */
+
+    if (controladorActual) {
+        controladorActual.abort();
+        controladorActual = null;
+    }
+
+    entrada.estado = "pendiente";
+    actualizarIndicadorCarga();
+
+    temporizadorPeticion = setTimeout(() => {
+        temporizadorPeticion = null;
+        ejecutarPeticionIA(topico);
+    }, ESPERA_ANTES_DE_ENVIAR_MS);
+}
+
+async function ejecutarPeticionIA(topico) {
+    const entrada = historialesPorTema[topico];
+
+    if (!entrada) return;
+
+    const miControlador = new AbortController();
+    controladorActual = miControlador;
 
     try {
         const response = await fetch("/api/chat", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                messages: historialChat
-            })
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ messages: entrada.historialChat }),
+            signal: miControlador.signal
         });
 
         if (!response.ok) {
             const errorData = await response.json();
-
             throw new Error(
                 errorData.detalle ||
                 errorData.error ||
@@ -388,17 +465,27 @@ async function solicitarRespuestaIA() {
         const data = await response.json();
         const respuestaIA = data.respuesta;
 
-        agregarMensajeUI(respuestaIA, "ai");
+        entrada.historialChat.push({ role: "assistant", content: respuestaIA });
+        entrada.estado = "listo";
 
-        historialChat.push({
-            role: "assistant",
-            content: respuestaIA
-        });
+        mostrarMensajeDeTema(topico, respuestaIA, "ai");
 
     } catch (error) {
+
+        if (error.name === "AbortError") {
+            /* Petición cancelada intencionalmente porque el usuario
+               cambió de tópico. No es un error real: no se muestra
+               nada, y el tópico queda en "pendiente" para volver a
+               intentarse solo si el usuario regresa a él. */
+            return;
+        }
+
         console.error("Detalle técnico del error:", error);
 
-        agregarMensajeUI(
+        entrada.estado = "error";
+
+        mostrarMensajeDeTema(
+            topico,
             `Hubo un problema al conectar con la inteligencia artificial.
 
 Detalle: ${error.message}`,
@@ -406,8 +493,11 @@ Detalle: ${error.message}`,
         );
 
     } finally {
-        typingIndicator.classList.add("hidden");
-        btnEnviar.disabled = false;
-        document.getElementById("user-input").focus();
+
+        if (controladorActual === miControlador) {
+            controladorActual = null;
+        }
+
+        actualizarIndicadorCarga();
     }
 }

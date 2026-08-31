@@ -74,7 +74,7 @@ async function consultarGemini(messages) {
     }
 
     const { mensajeSistema, contents } = convertirMensajesAGemini(messages);
-    const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent';
 
     const body = { contents };
     if (mensajeSistema) {
@@ -105,6 +105,29 @@ async function consultarGemini(messages) {
 }
 
 /* ========================================= */
+/* DETECCIÓN DE ERRORES DE LÍMITE DE USO */
+/* ========================================= */
+
+/* Cuando ambos proveedores fallan por saturación (límite de
+   solicitudes/tokens por minuto), no tiene sentido mostrarle al
+   usuario final el JSON técnico crudo. Se detecta ese caso y se
+   muestra un mensaje amigable en su lugar, mientras que cualquier
+   otro tipo de error (configuración, credenciales, etc.) sigue
+   mostrando el detalle técnico completo, útil para depurar. */
+
+function esErrorDeLimiteDeUso(mensaje) {
+    if (!mensaje) return false;
+
+    return (
+        mensaje.includes('429') ||
+        mensaje.includes('Too Many Requests') ||
+        mensaje.includes('rate_limit') ||
+        mensaje.includes('RESOURCE_EXHAUSTED')
+    );
+}
+
+
+/* ========================================= */
 /* RUTA PRINCIPAL DEL CHAT */
 /* ========================================= */
 
@@ -131,7 +154,27 @@ app.post('/api/chat', async (req, res) => {
                 respuestaIA = await consultarGemini(messages);
                 proveedorUsado = 'gemini';
             } catch (errorGemini) {
-                throw new Error(`Groq: ${errorGroq.message} | Gemini (respaldo): ${errorGemini.message}`);
+
+                const detalleTecnico = `Groq: ${errorGroq.message} | Gemini (respaldo): ${errorGemini.message}`;
+
+                /* El detalle técnico completo siempre queda en los
+                   logs del servidor, sin importar qué se le muestre
+                   al usuario final. */
+
+                console.error('Fallaron ambos proveedores de IA. Detalle técnico:', detalleTecnico);
+
+                const esLimiteDeUso =
+                    esErrorDeLimiteDeUso(errorGroq.message) ||
+                    esErrorDeLimiteDeUso(errorGemini.message);
+
+                if (esLimiteDeUso) {
+                    throw new Error(
+                        'Estamos recibiendo muchas solicitudes en este momento. Por favor espera unos segundos e intenta de nuevo.'
+                    );
+                }
+
+                throw new Error(detalleTecnico);
+
             }
         }
 

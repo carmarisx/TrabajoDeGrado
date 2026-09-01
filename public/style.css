@@ -1,34 +1,54 @@
 /* ============================= */
 /* VARIABLES */
 /* ============================= */
+
 :root {
+
     --primary: #003366;
     --primary-hover: #002244;
+
     --bg-color: #f4f7f6;
+
     --card-bg: #ffffff;
+
     --text-main: #333333;
     --text-muted: #666666;
+
     --danger: #d9534f;
+
     --border-color: #e0e0e0;
+
     --surface-alt: rgba(0, 0, 0, 0.06);
     --surface-alt-soft: rgba(0, 0, 0, 0.04);
+
 }
+
 
 /* ============================= */
 /* MODO OSCURO */
 /* ============================= */
+
 body.dark-mode {
+
     --primary: #3d7ab8;
     --primary-hover: #4f8fd1;
+
     --bg-color: #14181c;
+
     --card-bg: #1e2328;
+
     --text-main: #e8e8e8;
     --text-muted: #a3a3a3;
+
     --danger: #ff6b66;
+
     --border-color: #333a40;
+
     --surface-alt: rgba(255, 255, 255, 0.08);
     --surface-alt-soft: rgba(255, 255, 255, 0.05);
+
 }
+
 
 body,
 .sidebar,
@@ -38,497 +58,1023 @@ body,
 .input-area,
 input,
 button {
-    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+
+    transition:
+        background-color 0.2s ease,
+        color 0.2s ease,
+        border-color 0.2s ease;
+
 }
+
 
 /* ============================= */
 /* CONFIGURACIÓN GENERAL */
 /* ============================= */
+
 * {
+
     box-sizing: border-box;
+
     margin: 0;
+
     padding: 0;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+
+    font-family:
+        'Segoe UI',
+        Tahoma,
+        Geneva,
+        Verdana,
+        sans-serif;
+
 }
 
+
 body {
+
     background-color: var(--bg-color);
+
     color: var(--text-main);
+
     display: flex;
+
     height: 100vh;
+
     overflow: hidden;
+
+    overflow-x: hidden;
+
 }
+
+
+html {
+
+    overflow-x: hidden;
+
+}
+
 
 /* ============================= */
 /* SIDEBAR */
 /* ============================= */
+
 .sidebar {
+
     width: 330px;
+
     background-color: var(--card-bg);
+
     border-right: 1px solid var(--border-color);
+
+    padding: 20px;
+
     display: flex;
+
     flex-direction: column;
-    overflow: hidden;
+
+    gap: 20px;
+
+    overflow-y: auto;
+
 }
 
-.sidebar-content {
-    flex: 1;
-    padding: 20px;
-    overflow-y: auto;
-    min-height: 0;
-}
 
 /* ============================= */
 /* MARCA ITM */
 /* ============================= */
+
 .brand {
+
     text-align: center;
+
     padding-bottom: 20px;
+
     border-bottom: 1px solid var(--border-color);
+
 }
+
 
 .logo {
+
     max-width: 200px;
+
     width: 100%;
+
     height: auto;
+
     object-fit: contain;
+
 }
 
+
 .brand-text {
+
     font-size: 0.75rem;
+
     color: var(--text-muted);
+
     margin-top: 8px;
+
     font-weight: bold;
+
     text-transform: uppercase;
+
     letter-spacing: 0.5px;
+
 }
+
 
 /* ============================= */
 /* SECCIONES SIDEBAR */
 /* ============================= */
+
 .sidebar h2 {
+
     font-size: 0.9rem;
+
     color: var(--text-muted);
+
     margin-bottom: 10px;
+
     text-transform: uppercase;
+
     letter-spacing: 0.5px;
+
 }
+
 
 /* ============================= */
 /* BOTONES */
 /* ============================= */
+
 .btn-materia,
 .btn-topico {
+
     width: 100%;
+
     padding: 12px;
+
     background-color: var(--bg-color);
+
     border: 1px solid var(--border-color);
+
     border-radius: 8px;
+
     cursor: pointer;
+
     text-align: left;
+
     font-size: 0.95rem;
+
     transition: all 0.2s ease;
+
     color: var(--text-main);
+
     margin-bottom: 6px;
+
 }
+
 
 .btn-materia {
+
     font-weight: bold;
+
     font-size: 1rem;
+
 }
+
 
 /* Hover */
+
 .btn-materia:hover,
 .btn-topico:hover {
+
     border-color: var(--primary);
+
     background-color: #e6f0fa;
+
 }
 
+
 /* Activo */
+
 .btn-materia.active,
 .btn-topico.active {
+
     background-color: var(--primary);
+
     color: white;
+
     border-color: var(--primary);
+
 }
+
 
 /* ============================= */
 /* ENCABEZADOS DE EJES */
 /* ============================= */
+
 .tema-header {
+
     font-size: 0.85rem;
+
     font-weight: bold;
+
     color: var(--primary);
+
     margin-top: 14px;
+
     margin-bottom: 7px;
+
     border-bottom: 1px solid #e5e5e5;
+
     padding-bottom: 5px;
+
 }
+
 
 /* ============================= */
 /* CONTENIDO PRINCIPAL */
 /* ============================= */
+
 .main-wrapper {
+
     flex: 1;
+
     display: flex;
+
     min-width: 0;
+
 }
 
+
 .main-content {
+
     flex: 1;
+
     display: flex;
+
     flex-direction: column;
+
+    min-width: 0;
+
     background-color: var(--bg-color);
+
 }
+
 
 /* ============================= */
 /* HEADER */
 /* ============================= */
+
 .header {
+
     padding: 20px;
+
     background-color: var(--card-bg);
+
     border-bottom: 1px solid var(--border-color);
+
     display: flex;
+
     justify-content: space-between;
+
     align-items: center;
+
     gap: 20px;
+
 }
 
+
 .header h1 {
+
     font-size: 1.4rem;
+
 }
+
 
 /* ============================= */
 /* BADGE IA */
 /* ============================= */
+
 .badge {
+
     background-color: #28a745;
+
     color: white;
+
     padding: 6px 12px;
+
     border-radius: 15px;
+
     font-size: 0.8rem;
+
     font-weight: bold;
+
     white-space: nowrap;
+
 }
+
 
 /* ============================= */
 /* GRUPO DERECHO DEL HEADER Y BOTÓN DE TEMA */
 /* ============================= */
+
 .header-actions {
+
     display: flex;
+
     align-items: center;
+
     gap: 12px;
+
 }
+
 
 .theme-toggle-btn {
+
     display: flex;
+
     align-items: center;
+
     justify-content: center;
+
     width: 40px;
+
     height: 40px;
+
     border-radius: 50%;
+
     border: 1px solid var(--border-color);
+
     background-color: var(--bg-color);
+
     color: var(--text-main);
+
     font-size: 1.1rem;
+
     cursor: pointer;
+
 }
 
+
 .theme-toggle-btn:hover {
+
     border-color: var(--primary);
+
 }
+
 
 /* ============================= */
 /* CHAT */
 /* ============================= */
+
 .chat-container {
+
     flex: 1;
+
+    min-width: 0;
+
     padding: 25px;
+
     overflow-y: auto;
+
+    overflow-x: hidden;
+
     display: flex;
+
     flex-direction: column;
+
     gap: 15px;
+
 }
+
 
 /* Mensaje bienvenida */
+
 .welcome-message {
+
     max-width: 600px;
+
     margin: auto;
+
     text-align: center;
+
     color: var(--text-muted);
+
     line-height: 1.6;
+
 }
+
 
 .welcome-message h2 {
+
     color: var(--primary);
+
     margin-bottom: 15px;
+
 }
 
+
 .welcome-message p {
+
     margin-bottom: 12px;
+
 }
+
 
 /* ============================= */
 /* MENSAJES */
 /* ============================= */
+
 .message {
+
     max-width: 80%;
+
+    min-width: 0;
+
     padding: 15px;
+
     border-radius: 12px;
+
     line-height: 1.6;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+
+    overflow-wrap: anywhere;
+
+    word-break: break-word;
+
+    overflow-x: hidden;
+
+    box-shadow:
+        0 1px 3px rgba(0, 0, 0, 0.08);
+
 }
 
-/* Los mensajes de texto plano respetan los saltos de línea. */
+
+/* Los mensajes de texto plano (usuario y error) sí deben
+   respetar los saltos de línea escritos a mano. Los mensajes
+   de la IA ya vienen convertidos a HTML, así que no lo necesitan. */
+
 .message.user,
 .message.error {
+
     white-space: pre-wrap;
+
 }
 
-/* Estilos del contenido markdown/LaTeX */
+
+/* Estilos del contenido markdown/LaTeX que devuelve la IA */
+
 .message.ai h1,
 .message.ai h2,
 .message.ai h3 {
+
     margin: 0.6em 0 0.4em;
+
     line-height: 1.3;
+
 }
 
 .message.ai p {
+
     margin: 0 0 0.8em;
+
 }
 
 .message.ai p:last-child {
+
     margin-bottom: 0;
+
 }
 
 .message.ai ul,
 .message.ai ol {
+
     margin: 0 0 0.8em 1.4em;
+
 }
 
 .message.ai li {
+
     margin-bottom: 0.3em;
+
 }
 
 .message.ai code {
+
     background-color: var(--surface-alt);
+
     padding: 2px 5px;
+
     border-radius: 4px;
+
     font-size: 0.9em;
+
 }
 
 .message.ai pre {
+
     background-color: var(--surface-alt);
+
     padding: 10px;
+
     border-radius: 8px;
+
     overflow-x: auto;
+
 }
 
 .message.ai table {
+
     border-collapse: collapse;
+
     width: 100%;
+
     margin: 0.6em 0;
+
     font-size: 0.95em;
+
 }
 
 .message.ai th,
 .message.ai td {
+
     border: 1px solid var(--border-color);
+
     padding: 6px 10px;
+
     text-align: left;
+
 }
 
 .message.ai th {
+
     background-color: var(--surface-alt-soft);
+
 }
 
 .message.ai .katex-display {
+
     overflow-x: auto;
+
     overflow-y: hidden;
+
     padding: 4px 0;
+
 }
+
+/* Contenedores de fórmulas (ver script.js): cada fórmula, sea en
+   línea o en bloque, tiene su propio scroll horizontal, así una
+   expresión muy ancha nunca empuja ni desborda la burbuja del chat
+   completa, sin importar qué delimitador haya usado la IA. */
+
+.message.ai .formula-bloque {
+
+    display: block;
+
+    max-width: 100%;
+
+    overflow-x: auto;
+
+    overflow-y: hidden;
+
+    padding: 4px 0;
+
+}
+
+.message.ai .formula-en-linea {
+
+    display: inline-block;
+
+    max-width: 100%;
+
+    overflow-x: auto;
+
+    overflow-y: hidden;
+
+    vertical-align: middle;
+
+}
+
 
 /* Usuario */
+
 .message.user {
+
     align-self: flex-end;
+
     background-color: var(--primary);
+
     color: white;
+
     border-bottom-right-radius: 3px;
+
 }
+
 
 /* IA */
+
 .message.ai {
+
     align-self: flex-start;
+
     background-color: var(--card-bg);
+
     border: 1px solid var(--border-color);
+
     border-bottom-left-radius: 3px;
+
 }
 
+
 /* Error */
+
 .message.error {
+
     align-self: center;
+
     background-color: #f8d7da;
+
     color: var(--danger);
+
     border: 1px solid #f5c6cb;
+
     text-align: center;
+
 }
+
 
 /* ============================= */
 /* INPUT */
 /* ============================= */
+
 .input-area {
+
     padding: 20px;
+
     background-color: var(--card-bg);
+
     border-top: 1px solid var(--border-color);
+
     display: flex;
-    flex-wrap: wrap;
+
     gap: 10px;
+
 }
+
 
 .input-area input {
+
     flex: 1;
+
     min-width: 0;
+
     padding: 15px;
+
     border: 1px solid var(--border-color);
+
     border-radius: 8px;
+
     font-size: 1rem;
+
     outline: none;
+
     background-color: var(--card-bg);
+
     color: var(--text-main);
+
 }
+
 
 .input-area input::placeholder {
+
     color: var(--text-muted);
+
 }
+
 
 .input-area input:focus {
+
     border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(0, 51, 102, 0.15);
+
+    box-shadow:
+        0 0 0 2px rgba(0, 51, 102, 0.15);
+
 }
+
 
 .input-area button {
+
     padding: 0 25px;
+
     background-color: var(--primary);
+
     color: white;
+
     border: none;
+
     border-radius: 8px;
+
     font-size: 1rem;
+
     font-weight: bold;
+
     cursor: pointer;
+
 }
+
 
 .input-area button:hover {
+
     background-color: var(--primary-hover);
+
 }
 
+
 .input-area button:disabled {
+
     background-color: #999999;
+
     cursor: not-allowed;
+
 }
+
 
 /* ============================= */
 /* INDICADOR ESCRIBIENDO */
 /* ============================= */
+
 .typing-indicator {
+
     padding: 8px 25px;
+
     color: var(--text-muted);
+
     font-style: italic;
+
     font-size: 0.9rem;
+
     display: flex;
+
     align-items: center;
+
     gap: 6px;
+
 }
+
 
 .dot {
+
     width: 6px;
+
     height: 6px;
+
     background-color: var(--text-muted);
+
     border-radius: 50%;
+
     animation: blink 1.4s infinite both;
+
 }
+
 
 .dot:nth-child(2) {
+
     animation-delay: 0.2s;
+
 }
+
 
 .dot:nth-child(3) {
+
     animation-delay: 0.4s;
+
 }
+
 
 @keyframes blink {
+
     0% {
+
         opacity: 0.2;
+
     }
+
     20% {
+
         opacity: 1;
+
     }
+
     100% {
+
         opacity: 0.2;
+
     }
+
 }
 
-/* ============================= */
-/* AUTOR */
-/* ============================= */
-.author {
-    flex-shrink: 0;
-    padding: 12px 20px;
-    border-top: 1px solid var(--border-color);
-    background-color: var(--card-bg);
-    text-align: center;
-    color: var(--text-muted);
-    font-size: 0.7rem;
-    line-height: 1.4;
-}
-
-.author span {
-    display: block;
-    margin-bottom: 3px;
-}
-
-.author strong {
-    display: block;
-    color: var(--text-main);
-    font-size: 0.75rem;
-}
 
 /* ============================= */
 /* UTILIDADES */
 /* ============================= */
+
 .hidden {
+
     display: none !important;
+
 }
 
+
 /* ============================= */
-/* RESPONSIVE */
+/* BOTONES DE MENÚ MÓVIL (ocultos en escritorio) */
 /* ============================= */
+
+.btn-menu-movil,
+.btn-cerrar-menu,
+.sidebar-backdrop {
+
+    display: none;
+
+}
+
+.btn-menu-movil {
+
+    align-items: center;
+
+    justify-content: center;
+
+    width: 40px;
+
+    height: 40px;
+
+    border-radius: 50%;
+
+    border: 1px solid var(--border-color);
+
+    background-color: var(--bg-color);
+
+    color: var(--text-main);
+
+    font-size: 1.2rem;
+
+    cursor: pointer;
+
+    flex-shrink: 0;
+
+}
+
+.btn-cerrar-menu {
+
+    align-self: flex-end;
+
+    width: 32px;
+
+    height: 32px;
+
+    align-items: center;
+
+    justify-content: center;
+
+    border: none;
+
+    background-color: transparent;
+
+    color: var(--text-muted);
+
+    font-size: 1.1rem;
+
+    cursor: pointer;
+
+}
+
+
+/* ============================= */
+/* RESPONSIVE (móvil): menú lateral tipo cajón */
+/* ============================= */
+
 @media (max-width: 768px) {
-    body {
-        flex-direction: column;
-        overflow: auto;
+
+    .btn-menu-movil {
+
+        display: flex;
+
     }
 
-    .sidebar {
-        width: 100%;
-        height: 45vh;
-        max-height: 45vh;
-        border-right: none;
-        border-bottom: 1px solid var(--border-color);
+    .header {
+
+        gap: 12px;
+
     }
 
     .header h1 {
-        font-size: 1.1rem;
+
+        font-size: 1.05rem;
+
+        flex: 1;
+
+        min-width: 0;
+
     }
 
     .message {
+
         max-width: 90%;
+
     }
 
     .input-area {
+
         padding: 12px;
+
+        gap: 8px;
+
     }
 
     .input-area input {
-        min-width: 0;
+
+        padding: 12px;
+
     }
+
+    .input-area button {
+
+        padding: 0 16px;
+
+        flex-shrink: 0;
+
+    }
+
+    /* El panel de temas se convierte en un cajón que se desliza
+       desde la izquierda, flotando por encima del chat, en vez de
+       ocupar la mitad de la pantalla apilado arriba del contenido. */
+
+    .sidebar {
+
+        position: fixed;
+
+        top: 0;
+
+        left: 0;
+
+        height: 100vh;
+
+        width: 85%;
+
+        max-width: 320px;
+
+        z-index: 1000;
+
+        transform: translateX(-100%);
+
+        transition: transform 0.25s ease;
+
+        box-shadow: 2px 0 16px rgba(0, 0, 0, 0.3);
+
+    }
+
+    .btn-cerrar-menu {
+
+        display: flex;
+
+    }
+
+    /* Fondo oscuro semitransparente detrás del cajón, para poder
+       cerrarlo tocando fuera de él */
+
+    .sidebar-backdrop {
+
+        display: block;
+
+        position: fixed;
+
+        inset: 0;
+
+        background-color: rgba(0, 0, 0, 0.5);
+
+        z-index: 999;
+
+        opacity: 0;
+
+        pointer-events: none;
+
+        transition: opacity 0.25s ease;
+
+    }
+
+    /* Estado abierto (clase controlada por JS) */
+
+    body.sidebar-abierta .sidebar {
+
+        transform: translateX(0);
+
+    }
+
+    body.sidebar-abierta .sidebar-backdrop {
+
+        opacity: 1;
+
+        pointer-events: auto;
+
+    }
+
 }

@@ -31,6 +31,23 @@ document.addEventListener("DOMContentLoaded", aplicarTemaGuardado);
 
 
 /* ========================================= */
+/* MENÚ LATERAL EN MÓVIL (tipo cajón) */
+/* ========================================= */
+
+/* En escritorio, esta clase no tiene ningún efecto visual (el CSS
+   solo la usa dentro del media query de móvil). En móvil, controla
+   si el panel de temas se ve como una capa flotante sobre el chat. */
+
+function abrirMenuMovil() {
+    document.body.classList.add("sidebar-abierta");
+}
+
+function cerrarMenuMovil() {
+    document.body.classList.remove("sidebar-abierta");
+}
+
+
+/* ========================================= */
 /* CONTENIDOS DE MATEMÁTICAS BÁSICAS */
 /* ========================================= */
 
@@ -185,6 +202,12 @@ Explica la información de manera estructurada y comprensible.
 /* ========================================= */
 
 function iniciarChatTopico(topico, btnElement) {
+    /* En móvil, cerrar el menú lateral apenas se elige un tema,
+       para que el chat quede visible a pantalla completa. En
+       escritorio esto no tiene ningún efecto. */
+
+    cerrarMenuMovil();
+
     document.querySelectorAll(".btn-topico").forEach(boton => {
         boton.classList.remove("active");
     });
@@ -303,17 +326,25 @@ function convertirTextoIAaHTML(texto) {
     let html = marked.parse(textoLimpio);
 
     formulas.forEach((f, idx) => {
-        let renderizado;
+        let katexHtml;
 
         try {
-            renderizado = katex.renderToString(f.contenido, {
+            katexHtml = katex.renderToString(f.contenido, {
                 throwOnError: false,
                 displayMode: f.esDisplay,
                 output: "html"
             });
         } catch (e) {
-            renderizado = f.esDisplay ? `[${f.contenido}]` : `(${f.contenido})`;
+            katexHtml = f.esDisplay ? `[${f.contenido}]` : `(${f.contenido})`;
         }
+
+        /* Se envuelve la fórmula (sea en línea o en bloque) en un
+           contenedor con scroll horizontal propio, para que una
+           fórmula muy ancha nunca empuje ni desborde la burbuja del
+           chat completa. */
+
+        const clase = f.esDisplay ? "formula-bloque" : "formula-en-linea";
+        const renderizado = `<span class="${clase}">${katexHtml}</span>`;
 
         html = html.replace(`@@FORMULA_${idx}@@`, renderizado);
     });

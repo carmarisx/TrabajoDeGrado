@@ -213,14 +213,14 @@ function iniciarChatTopico(topico, btnElement) {
     });
 
     btnElement.classList.add("active");
-    document.getElementById("header-title").innerText = `Tema seleccionado: ${topico}`;
+    document.getElementById("header-title").innerText = topico;
     document.getElementById("input-area").classList.remove("hidden");
     document.getElementById("ai-badge").classList.remove("hidden");
 
     temaActual = topico;
 
-    const chatContainer = document.getElementById("chat-container");
-    chatContainer.innerHTML = "";
+    const chatMensajes = document.getElementById("chat-mensajes");
+    chatMensajes.innerHTML = "";
 
     /* Si es la primera vez que se visita este tópico, se crea su
        historial desde cero (system + prompt inicial). Si ya existía,
@@ -338,10 +338,11 @@ function convertirTextoIAaHTML(texto) {
             katexHtml = f.esDisplay ? `[${f.contenido}]` : `(${f.contenido})`;
         }
 
-        /* Se envuelve la fórmula (sea en línea o en bloque) en un
-           contenedor con scroll horizontal propio, para que una
-           fórmula muy ancha nunca empuje ni desborde la burbuja del
-           chat completa. */
+        /* A diferencia de antes, la fórmula ya NO se envuelve en su
+           propio contenedor con scroll: solo se distingue si es en
+           línea o en bloque, para darle un formato de texto
+           adecuado. El único lugar donde se permite scroll horizontal
+           por fórmulas es a nivel de tabla completa (ver más abajo). */
 
         const clase = f.esDisplay ? "formula-bloque" : "formula-en-linea";
         const renderizado = `<span class="${clase}">${katexHtml}</span>`;
@@ -349,7 +350,78 @@ function convertirTextoIAaHTML(texto) {
         html = html.replace(`@@FORMULA_${idx}@@`, renderizado);
     });
 
+    /* Si el markdown generó alguna tabla, se envuelve en un único
+       contenedor con scroll horizontal (una sola barra para toda la
+       tabla), en vez de que cada celda con una fórmula ancha tenga
+       su propia mini barra de scroll. */
+
+    html = html.replace(/<table>/g, '<div class="tabla-scroll"><table>');
+    html = html.replace(/<\/table>/g, '</table></div>');
+
     return html;
+}
+
+
+/* ========================================= */
+/* COPIAR AL PORTAPAPELES */
+/* ========================================= */
+
+function copiarAlPortapapeles(texto, boton, textoBotonNormal) {
+    navigator.clipboard.writeText(texto).then(() => {
+        const original = textoBotonNormal;
+
+        boton.innerText = "¡Copiado!";
+
+        setTimeout(() => {
+            boton.innerText = original;
+        }, 1500);
+
+    }).catch(err => {
+        console.error("No se pudo copiar al portapapeles:", err);
+    });
+}
+
+
+/* Recorre los bloques de código dentro de un mensaje ya pintado y
+   les agrega, arriba de cada uno, una barra con el lenguaje y un
+   botón para copiar solo ese bloque (igual que ChatGPT/Claude). */
+
+function agregarBotonesDeCodigo(mensajeDiv) {
+    mensajeDiv.querySelectorAll("pre").forEach(pre => {
+        const codeEl = pre.querySelector("code");
+
+        let lenguaje = "Código";
+
+        if (codeEl) {
+            const match = codeEl.className.match(/language-(\w+)/);
+            if (match) lenguaje = match[1];
+        }
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "bloque-codigo";
+
+        const header = document.createElement("div");
+        header.className = "bloque-codigo-header";
+
+        const etiqueta = document.createElement("span");
+        etiqueta.innerText = lenguaje;
+
+        const btnCopiar = document.createElement("button");
+        btnCopiar.type = "button";
+        btnCopiar.className = "bloque-codigo-copiar";
+        btnCopiar.innerText = "Copiar";
+        btnCopiar.onclick = () => {
+            const textoCodigo = codeEl ? codeEl.innerText : pre.innerText;
+            copiarAlPortapapeles(textoCodigo, btnCopiar, "Copiar");
+        };
+
+        header.appendChild(etiqueta);
+        header.appendChild(btnCopiar);
+
+        pre.parentNode.insertBefore(wrapper, pre);
+        wrapper.appendChild(header);
+        wrapper.appendChild(pre);
+    });
 }
 
 
@@ -359,6 +431,7 @@ function convertirTextoIAaHTML(texto) {
 
 function agregarMensajeUI(texto, emisor) {
     const chatContainer = document.getElementById("chat-container");
+    const chatMensajes = document.getElementById("chat-mensajes");
     const mensajeDiv = document.createElement("div");
 
     mensajeDiv.className = `message ${emisor}`;
@@ -367,12 +440,29 @@ function agregarMensajeUI(texto, emisor) {
         const htmlCrudo = convertirTextoIAaHTML(texto);
         const htmlSeguro = DOMPurify.sanitize(htmlCrudo, { ADD_ATTR: ["style"] });
         mensajeDiv.innerHTML = htmlSeguro;
+
+        agregarBotonesDeCodigo(mensajeDiv);
     } else {
         mensajeDiv.innerText = texto;
     }
 
-    chatContainer.appendChild(mensajeDiv);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
+    chatMensajes.appendChild(mensajeDiv);
+
+    /* Cuando TÚ envías un mensaje, la vista se acomoda para que tu
+       pregunta quede arriba del todo (no al fondo), dejando visible
+       hacia abajo todo el espacio para leer la respuesta de la IA
+       desde su inicio, igual que en ChatGPT. Cuando responde la IA,
+       no se mueve nada: te quedas leyendo desde donde ya estabas. */
+
+    if (emisor === "user") {
+        if (typeof mensajeDiv.scrollIntoView === "function") {
+            mensajeDiv.scrollIntoView({ behavior: "smooth", block: "start" });
+        } else {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+    } else if (emisor === "error") {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
 }
 
 

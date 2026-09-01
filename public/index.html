@@ -99,18 +99,20 @@
 
             <!-- Chat -->
             <div class="chat-container" id="chat-container">
-                <div class="welcome-message">
-                    <h2>Bienvenido al Tutor IA</h2>
-                    <p>
-                        Selecciona <strong>Matemáticas Básicas</strong>
-                        y posteriormente elige uno de los temas
-                        disponibles para comenzar.
-                    </p>
-                    <p>
-                        La aplicación generará automáticamente un
-                        contexto para orientar la consulta al modelo
-                        de inteligencia artificial.
-                    </p>
+                <div class="chat-mensajes" id="chat-mensajes">
+                    <div class="welcome-message">
+                        <h2>Bienvenido al Tutor IA</h2>
+                        <p>
+                            Selecciona <strong>Matemáticas Básicas</strong>
+                            y posteriormente elige uno de los temas
+                            disponibles para comenzar.
+                        </p>
+                        <p>
+                            La aplicación generará automáticamente un
+                            contexto para orientar la consulta al modelo
+                            de inteligencia artificial.
+                        </p>
+                    </div>
                 </div>
             </div>
 
@@ -124,11 +126,13 @@
 
             <!-- Área para escribir -->
             <div class="input-area hidden" id="input-area">
-                <input type="text" id="user-input"
-                    placeholder="Escribe tu duda, pide un ejemplo o solicita un ejercicio..." autocomplete="off">
-                <button id="btn-enviar" onclick="enviarMensajeUsuario()">
-                    Enviar
-                </button>
+                <div class="input-area-inner">
+                    <input type="text" id="user-input"
+                        placeholder="Escribe tu duda, pide un ejemplo o solicita un ejercicio..." autocomplete="off">
+                    <button id="btn-enviar" onclick="enviarMensajeUsuario()">
+                        Enviar
+                    </button>
+                </div>
             </div>
         </main>
     </div>

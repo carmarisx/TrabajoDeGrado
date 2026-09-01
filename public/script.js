@@ -116,18 +116,53 @@ function seleccionarMateria() {
         seccionTopicos.classList.remove("hidden");
 
         if (lista.children.length === 0) {
+            /* Contenedor del eje que se está armando en este momento;
+               todos los tópicos que vengan después de un "header" se
+               agregan dentro de este contenedor, hasta encontrar el
+               siguiente header. */
+
+            let grupoActual = null;
+
             topicosMatematicas.forEach(item => {
                 if (item.tipo === "header") {
-                    const header = document.createElement("div");
-                    header.className = "tema-header";
-                    header.innerText = item.titulo;
-                    lista.appendChild(header);
+                    const headerBtn = document.createElement("button");
+                    headerBtn.type = "button";
+                    headerBtn.className = "eje-header";
+
+                    const texto = document.createElement("span");
+                    texto.className = "eje-header-texto";
+                    texto.innerText = item.titulo;
+
+                    const icono = document.createElement("span");
+                    icono.className = "eje-header-icono";
+                    icono.innerText = "▸";
+
+                    headerBtn.appendChild(texto);
+                    headerBtn.appendChild(icono);
+
+                    const grupo = document.createElement("div");
+                    grupo.className = "grupo-topicos hidden";
+
+                    headerBtn.onclick = () => {
+                        grupo.classList.toggle("hidden");
+                        headerBtn.classList.toggle("abierto");
+                    };
+
+                    lista.appendChild(headerBtn);
+                    lista.appendChild(grupo);
+
+                    grupoActual = grupo;
                 } else {
                     const boton = document.createElement("button");
                     boton.className = "btn-topico";
                     boton.innerText = item.titulo;
                     boton.onclick = () => iniciarChatTopico(item.titulo, boton);
-                    lista.appendChild(boton);
+
+                    if (grupoActual) {
+                        grupoActual.appendChild(boton);
+                    } else {
+                        lista.appendChild(boton);
+                    }
                 }
             });
         }
@@ -244,7 +279,7 @@ function iniciarChatTopico(topico, btnElement) {
     /* Repintar en pantalla lo que ya se había mostrado antes */
 
     entrada.mensajesUI.forEach(msg => {
-        agregarMensajeUI(msg.texto, msg.emisor);
+        agregarMensajeUI(msg.texto, msg.emisor, { topico, registro: msg });
     });
 
     /* Si el tópico es nuevo, o quedó con una respuesta pendiente
@@ -426,10 +461,69 @@ function agregarBotonesDeCodigo(mensajeDiv) {
 
 
 /* ========================================= */
+/* VALORACIÓN DE RESPUESTAS (👍 / 👎) */
+/* ========================================= */
+
+function enviarFeedback(topico, pregunta, respuesta, valoracion) {
+    fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topico, pregunta, respuesta, valoracion })
+    }).catch(error => {
+        console.error("No se pudo registrar el feedback:", error);
+    });
+}
+
+function agregarBotonesFeedback(mensajeDiv, texto, contexto) {
+    const { topico, registro } = contexto;
+
+    const barra = document.createElement("div");
+    barra.className = "feedback-barra";
+
+    const btnUp = document.createElement("button");
+    btnUp.type = "button";
+    btnUp.className = "feedback-btn";
+    btnUp.innerText = "👍";
+    btnUp.title = "Esta respuesta fue útil";
+
+    const btnDown = document.createElement("button");
+    btnDown.type = "button";
+    btnDown.className = "feedback-btn";
+    btnDown.innerText = "👎";
+    btnDown.title = "Esta respuesta no fue útil";
+
+    function actualizarEstadoVisual() {
+        btnUp.classList.toggle("activo", registro.valoracion === "up");
+        btnDown.classList.toggle("activo", registro.valoracion === "down");
+    }
+
+    function valorar(valor) {
+        /* Un segundo clic sobre el mismo botón quita la valoración */
+        registro.valoracion = registro.valoracion === valor ? null : valor;
+
+        actualizarEstadoVisual();
+
+        if (registro.valoracion) {
+            enviarFeedback(topico, registro.pregunta, texto, registro.valoracion);
+        }
+    }
+
+    btnUp.onclick = () => valorar("up");
+    btnDown.onclick = () => valorar("down");
+
+    actualizarEstadoVisual();
+
+    barra.appendChild(btnUp);
+    barra.appendChild(btnDown);
+    mensajeDiv.appendChild(barra);
+}
+
+
+/* ========================================= */
 /* AGREGAR MENSAJE A LA INTERFAZ (solo pinta) */
 /* ========================================= */
 
-function agregarMensajeUI(texto, emisor) {
+function agregarMensajeUI(texto, emisor, contexto = {}) {
     const chatContainer = document.getElementById("chat-container");
     const chatMensajes = document.getElementById("chat-mensajes");
     const mensajeDiv = document.createElement("div");
@@ -442,6 +536,10 @@ function agregarMensajeUI(texto, emisor) {
         mensajeDiv.innerHTML = htmlSeguro;
 
         agregarBotonesDeCodigo(mensajeDiv);
+
+        if (contexto.registro) {
+            agregarBotonesFeedback(mensajeDiv, texto, contexto);
+        }
     } else {
         mensajeDiv.innerText = texto;
     }
@@ -476,15 +574,22 @@ function agregarMensajeUI(texto, emisor) {
    Así, una respuesta "tardía" de un tópico que ya no se está viendo
    nunca se mezcla con el tópico que el usuario tiene abierto ahora. */
 
-function mostrarMensajeDeTema(topico, texto, emisor) {
+function mostrarMensajeDeTema(topico, texto, emisor, contexto = {}) {
     const entrada = historialesPorTema[topico];
 
+    const registro = {
+        texto,
+        emisor,
+        pregunta: contexto.pregunta || null,
+        valoracion: null
+    };
+
     if (entrada) {
-        entrada.mensajesUI.push({ texto, emisor });
+        entrada.mensajesUI.push(registro);
     }
 
     if (topico === temaActual) {
-        agregarMensajeUI(texto, emisor);
+        agregarMensajeUI(texto, emisor, { topico, registro });
     }
 }
 
@@ -570,7 +675,7 @@ async function ejecutarPeticionIA(topico) {
         const response = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ messages: entrada.historialChat }),
+            body: JSON.stringify({ messages: entrada.historialChat, topico }),
             signal: miControlador.signal
         });
 
@@ -586,10 +691,17 @@ async function ejecutarPeticionIA(topico) {
         const data = await response.json();
         const respuestaIA = data.respuesta;
 
+        /* Se guarda cuál fue la pregunta que generó esta respuesta,
+           para poder mandarla junto con el 👍/👎 que dé el estudiante
+           y así el log de feedback tenga contexto completo. */
+
+        const preguntaAsociada =
+            entrada.historialChat[entrada.historialChat.length - 1]?.content || "";
+
         entrada.historialChat.push({ role: "assistant", content: respuestaIA });
         entrada.estado = "listo";
 
-        mostrarMensajeDeTema(topico, respuestaIA, "ai");
+        mostrarMensajeDeTema(topico, respuestaIA, "ai", { pregunta: preguntaAsociada });
 
     } catch (error) {
 

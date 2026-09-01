@@ -2,12 +2,49 @@ require('dotenv').config();
 
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+/* ========================================= */
+/* REGISTRO (LOG) DE CONVERSACIONES */
+/* ========================================= */
+
+/* Cada intercambio con la IA, y cada valoración (👍/👎) que dé un
+   estudiante, se guarda como una línea de JSON en /logs. Este
+   registro es la base de datos del caso de estudio: permite medir
+   qué tan pertinentes fueron las respuestas, qué proveedor las
+   generó, cuánto tardaron, y qué temas se consultan más.
+
+   Nota: en un plan gratuito de hosting (como Render free tier), el
+   disco no es 100% persistente entre reinicios/redeploys, así que
+   para no perder datos conviene descargar estos archivos de forma
+   periódica durante la recolección de datos del caso de estudio. */
+
+const CARPETA_LOGS = path.join(__dirname, 'logs');
+
+try {
+    fs.mkdirSync(CARPETA_LOGS, { recursive: true });
+} catch (error) {
+    console.error('No se pudo crear la carpeta de logs:', error.message);
+}
+
+function registrarEnArchivo(nombreArchivo, datos) {
+    const linea = JSON.stringify({
+        fecha: new Date().toISOString(),
+        ...datos
+    }) + '\n';
+
+    fs.appendFile(path.join(CARPETA_LOGS, nombreArchivo), linea, error => {
+        if (error) {
+            console.error(`No se pudo escribir en ${nombreArchivo}:`, error.message);
+        }
+    });
+}
 
 /* ========================================= */
 /* GROQ (proveedor principal) */
@@ -132,8 +169,10 @@ function esErrorDeLimiteDeUso(mensaje) {
 /* ========================================= */
 
 app.post('/api/chat', async (req, res) => {
+    const inicio = Date.now();
+
     try {
-        const { messages } = req.body;
+        const { messages, topico } = req.body;
         if (!messages || !Array.isArray(messages)) {
             return res.status(400).json({
                 error: 'No se recibió un historial válido de mensajes.'
@@ -167,6 +206,16 @@ app.post('/api/chat', async (req, res) => {
                     esErrorDeLimiteDeUso(errorGroq.message) ||
                     esErrorDeLimiteDeUso(errorGemini.message);
 
+                registrarEnArchivo('conversaciones.jsonl', {
+                    topico: topico || null,
+                    pregunta: messages[messages.length - 1]?.content || null,
+                    respuesta: null,
+                    proveedor: null,
+                    exito: false,
+                    error: detalleTecnico,
+                    duracionMs: Date.now() - inicio
+                });
+
                 if (esLimiteDeUso) {
                     throw new Error(
                         'Estamos recibiendo muchas solicitudes en este momento. Por favor espera unos segundos e intenta de nuevo.'
@@ -179,6 +228,16 @@ app.post('/api/chat', async (req, res) => {
         }
 
         console.log(`Respuesta obtenida con: ${proveedorUsado}`);
+
+        registrarEnArchivo('conversaciones.jsonl', {
+            topico: topico || null,
+            pregunta: messages[messages.length - 1]?.content || null,
+            respuesta: respuestaIA,
+            proveedor: proveedorUsado,
+            exito: true,
+            duracionMs: Date.now() - inicio
+        });
+
         res.json({ respuesta: respuestaIA });
 
     } catch (error) {
@@ -188,6 +247,30 @@ app.post('/api/chat', async (req, res) => {
             detalle: error.message
         });
     }
+});
+
+
+/* ========================================= */
+/* RUTA DE VALORACIÓN (👍 / 👎) */
+/* ========================================= */
+
+app.post('/api/feedback', (req, res) => {
+    const { topico, pregunta, respuesta, valoracion } = req.body;
+
+    if (valoracion !== 'up' && valoracion !== 'down') {
+        return res.status(400).json({
+            error: 'La valoración debe ser "up" o "down".'
+        });
+    }
+
+    registrarEnArchivo('feedback.jsonl', {
+        topico: topico || null,
+        pregunta: pregunta || null,
+        respuesta: respuesta || null,
+        valoracion
+    });
+
+    res.json({ ok: true });
 });
 
 app.listen(PORT, () => {

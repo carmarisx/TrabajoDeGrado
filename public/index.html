@@ -83,6 +83,24 @@
                 </h1>
                 <div class="header-actions">
                     <button
+                        id="btn-exportar-md"
+                        class="theme-toggle-btn hidden"
+                        onclick="exportarConversacionMarkdown()"
+                        title="Descargar esta conversación en Markdown"
+                        aria-label="Descargar esta conversación en Markdown"
+                    >
+                        📥
+                    </button>
+                    <button
+                        id="btn-exportar-pdf"
+                        class="theme-toggle-btn hidden"
+                        onclick="exportarConversacionPDF()"
+                        title="Exportar esta conversación a PDF"
+                        aria-label="Exportar esta conversación a PDF"
+                    >
+                        🖨️
+                    </button>
+                    <button
                         id="btn-tema"
                         class="theme-toggle-btn"
                         onclick="alternarTema()"
@@ -101,6 +119,13 @@
             <div class="chat-container" id="chat-container">
                 <div class="chat-mensajes" id="chat-mensajes">
                     <div class="welcome-message">
+                        <div class="welcome-ilustracion" aria-hidden="true">
+                            <span class="simbolo simbolo-1">∑</span>
+                            <span class="simbolo simbolo-2">π</span>
+                            <span class="simbolo simbolo-3">√x</span>
+                            <span class="simbolo simbolo-4">∞</span>
+                            <div class="welcome-icono-central">📐</div>
+                        </div>
                         <h2>Bienvenido al Tutor IA</h2>
                         <p>
                             Selecciona <strong>Matemáticas Básicas</strong>

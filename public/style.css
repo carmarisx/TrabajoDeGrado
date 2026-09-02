@@ -267,6 +267,30 @@ html {
 
     margin-bottom: 6px;
 
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 8px;
+
+}
+
+.btn-topico-texto {
+
+    flex: 1;
+
+}
+
+.btn-topico-check {
+
+    flex-shrink: 0;
+
+    font-size: 0.85rem;
+
+    color: #28a745;
+
 }
 
 
@@ -628,6 +652,166 @@ html {
     color: var(--text-muted);
 
     line-height: 1.6;
+
+    animation: welcome-aparecer 0.6s ease;
+
+}
+
+
+/* Ilustración animada: símbolos matemáticos flotando alrededor de
+   un ícono central, con un movimiento sutil (no distrae, solo le da
+   vida a la pantalla de bienvenida) */
+
+.welcome-ilustracion {
+
+    position: relative;
+
+    width: 160px;
+
+    height: 160px;
+
+    margin: 0 auto 20px;
+
+}
+
+.welcome-icono-central {
+
+    position: absolute;
+
+    inset: 0;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    font-size: 3.5rem;
+
+    animation: welcome-pulso 3s ease-in-out infinite;
+
+}
+
+.simbolo {
+
+    position: absolute;
+
+    font-size: 1.3rem;
+
+    font-weight: bold;
+
+    color: var(--primary);
+
+    opacity: 0.55;
+
+    animation: welcome-flotar 4s ease-in-out infinite;
+
+}
+
+.simbolo-1 {
+
+    top: 4px;
+
+    left: 12px;
+
+    animation-delay: 0s;
+
+}
+
+.simbolo-2 {
+
+    top: 14px;
+
+    right: 4px;
+
+    animation-delay: 0.6s;
+
+}
+
+.simbolo-3 {
+
+    bottom: 14px;
+
+    left: 4px;
+
+    animation-delay: 1.2s;
+
+}
+
+.simbolo-4 {
+
+    bottom: 4px;
+
+    right: 16px;
+
+    animation-delay: 1.8s;
+
+}
+
+@keyframes welcome-flotar {
+
+    0%, 100% {
+
+        transform: translateY(0);
+
+    }
+
+    50% {
+
+        transform: translateY(-10px);
+
+    }
+
+}
+
+@keyframes welcome-pulso {
+
+    0%, 100% {
+
+        transform: scale(1);
+
+    }
+
+    50% {
+
+        transform: scale(1.06);
+
+    }
+
+}
+
+@keyframes welcome-aparecer {
+
+    from {
+
+        opacity: 0;
+
+        transform: translateY(12px);
+
+    }
+
+    to {
+
+        opacity: 1;
+
+        transform: translateY(0);
+
+    }
+
+}
+
+/* Se respeta la preferencia de "menos movimiento" del sistema
+   operativo/navegador, por accesibilidad */
+
+@media (prefers-reduced-motion: reduce) {
+
+    .welcome-message,
+    .welcome-icono-central,
+    .simbolo {
+
+        animation: none;
+
+    }
 
 }
 
@@ -1400,6 +1584,59 @@ html {
         opacity: 1;
 
         pointer-events: auto;
+
+    }
+
+}
+
+/* ============================= */
+/* IMPRESIÓN / EXPORTAR A PDF */
+/* ============================= */
+
+/* Se usa la función nativa "Imprimir" del navegador (Ctrl+P /
+   window.print()) como forma de exportar a PDF sin depender de
+   ninguna librería externa. Estas reglas solo aplican al imprimir:
+   ocultan todo lo que no tiene sentido en un documento (sidebar,
+   botones, campo de texto) y dejan la conversación lista para leer
+   o guardar como PDF desde el diálogo de impresión. */
+
+@media print {
+
+    .sidebar,
+    .sidebar-backdrop,
+    .btn-menu-movil,
+    .header-actions,
+    .input-area,
+    .typing-indicator,
+    .feedback-barra,
+    .bloque-codigo-copiar {
+
+        display: none !important;
+
+    }
+
+    body,
+    .main-wrapper,
+    .main-content,
+    .chat-container {
+
+        height: auto !important;
+
+        overflow: visible !important;
+
+    }
+
+    .chat-mensajes {
+
+        max-width: 100% !important;
+
+    }
+
+    .message.user {
+
+        background-color: #eee !important;
+
+        color: #000 !important;
 
     }
 

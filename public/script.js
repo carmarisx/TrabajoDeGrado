@@ -155,7 +155,19 @@ function seleccionarMateria() {
                 } else {
                     const boton = document.createElement("button");
                     boton.className = "btn-topico";
-                    boton.innerText = item.titulo;
+
+                    const textoSpan = document.createElement("span");
+                    textoSpan.className = "btn-topico-texto";
+                    textoSpan.innerText = item.titulo;
+
+                    const checkSpan = document.createElement("span");
+                    checkSpan.className = "btn-topico-check hidden";
+                    checkSpan.innerText = "✓";
+                    checkSpan.title = "Ya tienes una conversación guardada en este tema";
+
+                    boton.appendChild(textoSpan);
+                    boton.appendChild(checkSpan);
+
                     boton.onclick = () => iniciarChatTopico(item.titulo, boton);
 
                     if (grupoActual) {
@@ -251,6 +263,8 @@ function iniciarChatTopico(topico, btnElement) {
     document.getElementById("header-title").innerText = topico;
     document.getElementById("input-area").classList.remove("hidden");
     document.getElementById("ai-badge").classList.remove("hidden");
+    document.getElementById("btn-exportar-md").classList.remove("hidden");
+    document.getElementById("btn-exportar-pdf").classList.remove("hidden");
 
     temaActual = topico;
 
@@ -258,10 +272,12 @@ function iniciarChatTopico(topico, btnElement) {
     chatMensajes.innerHTML = "";
 
     /* Si es la primera vez que se visita este tópico, se crea su
-       historial desde cero (system + prompt inicial). Si ya existía,
-       NO se toca su historialChat: puede tener ya una respuesta
-       completa, o puede haber quedado a medias por un cambio de
-       tópico anterior, y eso se resuelve más abajo. */
+       historial desde cero (system + prompt inicial), y se le marca
+       el checkmark ✓ en el sidebar para indicar que ya tiene una
+       conversación guardada. Si ya existía, NO se toca su
+       historialChat: puede tener ya una respuesta completa, o puede
+       haber quedado a medias por un cambio de tópico anterior, y eso
+       se resuelve más abajo. */
 
     if (!historialesPorTema[topico]) {
         historialesPorTema[topico] = {
@@ -272,6 +288,9 @@ function iniciarChatTopico(topico, btnElement) {
             mensajesUI: [],
             estado: "nuevo"
         };
+
+        const checkEl = btnElement.querySelector(".btn-topico-check");
+        if (checkEl) checkEl.classList.remove("hidden");
     }
 
     const entrada = historialesPorTema[topico];
@@ -561,6 +580,84 @@ function agregarMensajeUI(texto, emisor, contexto = {}) {
     } else if (emisor === "error") {
         chatContainer.scrollTop = chatContainer.scrollHeight;
     }
+}
+
+
+/* ========================================= */
+/* EXPORTAR CONVERSACIÓN (Markdown / PDF) */
+/* ========================================= */
+
+function normalizarNombreArchivo(texto) {
+    return texto
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+}
+
+function construirMarkdownConversacion(topico) {
+    const entrada = historialesPorTema[topico];
+
+    if (!entrada || entrada.mensajesUI.length === 0) {
+        return `# ${topico}\n\nAún no hay conversación para exportar en este tema.\n`;
+    }
+
+    const fecha = new Date().toLocaleDateString("es-CO", {
+        year: "numeric",
+        month: "long",
+        day: "numeric"
+    });
+
+    let md = `# ${topico}\n\n`;
+    md += `_Conversación exportada del Tutor IA — Matemáticas Básicas ITM · ${fecha}_\n\n`;
+    md += `---\n\n`;
+
+    entrada.mensajesUI.forEach(msg => {
+        if (msg.emisor === "user") {
+            md += `### 🧑 Estudiante\n\n${msg.texto}\n\n`;
+        } else if (msg.emisor === "ai") {
+            md += `### 🤖 Tutor IA\n\n${msg.texto}\n\n`;
+        }
+        /* Los mensajes de error no se incluyen en la exportación */
+    });
+
+    return md;
+}
+
+function descargarArchivo(nombre, contenido, tipoMime) {
+    const blob = new Blob([contenido], { type: tipoMime });
+    const url = URL.createObjectURL(blob);
+
+    const enlace = document.createElement("a");
+    enlace.href = url;
+    enlace.download = nombre;
+
+    document.body.appendChild(enlace);
+    enlace.click();
+    document.body.removeChild(enlace);
+
+    URL.revokeObjectURL(url);
+}
+
+function exportarConversacionMarkdown() {
+    if (!temaActual) return;
+
+    const md = construirMarkdownConversacion(temaActual);
+    const nombreArchivo = `conversacion-${normalizarNombreArchivo(temaActual)}.md`;
+
+    descargarArchivo(nombreArchivo, md, "text/markdown;charset=utf-8");
+}
+
+/* Para el PDF se aprovecha la función de imprimir del navegador (sin
+   depender de ninguna librería externa): se aplican estilos de
+   impresión (@media print, en style.css) que ocultan el sidebar,
+   los botones y el campo de texto, dejando solo la conversación
+   lista para "Guardar como PDF" desde el diálogo de impresión. */
+
+function exportarConversacionPDF() {
+    if (!temaActual) return;
+    window.print();
 }
 
 

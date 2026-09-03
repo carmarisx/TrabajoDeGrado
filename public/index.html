@@ -37,35 +37,45 @@
             ✕
         </button>
 
-        <!-- Logo ITM -->
-        <div class="brand">
-            <img src="img/logo-itm.png" alt="Logo ITM" class="logo">
-            <p class="brand-text">
-                Reacreditada en Alta Calidad
-            </p>
-        </div>
+        <div class="sidebar-content">
 
-        <!-- Selección de materia -->
-        <div class="materias-section">
-            <h2>Selección de materia</h2>
-            <button class="btn-materia" id="btn-matematicas" onclick="seleccionarMateria()">
-                Matemáticas Básicas
-            </button>
-        </div>
-
-        <!-- Lista de tópicos -->
-        <div id="seccion-topicos" class="hidden">
-            <h2>Contenido del curso</h2>
-            <input
-                type="text"
-                id="buscador-topicos"
-                class="buscador-topicos"
-                placeholder="Buscar tema..."
-                autocomplete="off"
-            >
-            <div id="lista-topicos">
-                <!-- Los tópicos se generan con JavaScript -->
+            <!-- Logo ITM -->
+            <div class="brand">
+                <img src="img/logo-itm.png" alt="Logo ITM" class="logo">
+                <p class="brand-text">
+                    Reacreditada en Alta Calidad
+                </p>
             </div>
+
+            <!-- Selección de materia -->
+            <div class="materias-section">
+                <h2>Selección de materia</h2>
+                <button class="btn-materia" id="btn-matematicas" onclick="seleccionarMateria()">
+                    Matemáticas Básicas
+                </button>
+            </div>
+
+            <!-- Lista de tópicos -->
+            <div id="seccion-topicos" class="hidden">
+                <h2>Contenido del curso</h2>
+                <input
+                    type="text"
+                    id="buscador-topicos"
+                    class="buscador-topicos"
+                    placeholder="Buscar tema..."
+                    autocomplete="off"
+                >
+                <div id="lista-topicos">
+                    <!-- Los tópicos se generan con JavaScript -->
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Autor -->
+        <div class="author">
+            <span>Desarrollado por</span>
+            <strong>Carlos David Méndez Aristizábal</strong>
         </div>
     </aside>
 
@@ -89,36 +99,61 @@
                     Selecciona un tema para comenzar
                 </h1>
                 <div class="header-actions">
-                    <button
-                        id="btn-exportar-md"
-                        class="theme-toggle-btn hidden"
-                        onclick="exportarConversacionMarkdown()"
-                        title="Descargar esta conversación en Markdown"
-                        aria-label="Descargar esta conversación en Markdown"
-                    >
-                        📥
-                    </button>
-                    <button
-                        id="btn-exportar-pdf"
-                        class="theme-toggle-btn hidden"
-                        onclick="exportarConversacionPDF()"
-                        title="Exportar esta conversación a PDF"
-                        aria-label="Exportar esta conversación a PDF"
-                    >
-                        🖨️
-                    </button>
-                    <button
-                        id="btn-tema"
-                        class="theme-toggle-btn"
-                        onclick="alternarTema()"
-                        title="Cambiar entre modo claro y oscuro"
-                        aria-label="Cambiar entre modo claro y oscuro"
-                    >
-                        🌙
-                    </button>
                     <span class="badge hidden" id="ai-badge">
                         IA activa
                     </span>
+
+                    <div class="opciones-wrapper">
+                        <button
+                            id="btn-opciones"
+                            class="btn-opciones"
+                            onclick="alternarMenuOpciones()"
+                            title="Opciones"
+                            aria-label="Opciones"
+                            aria-haspopup="true"
+                            aria-expanded="false"
+                        >
+                            Opciones
+                            <span class="btn-opciones-icono">▾</span>
+                        </button>
+
+                        <div id="menu-opciones" class="menu-opciones hidden">
+
+                            <button
+                                id="btn-tema"
+                                type="button"
+                                class="menu-opciones-item"
+                                onclick="alternarTema()"
+                            >
+                                <span class="menu-opciones-icono">🌙</span>
+                                <span id="btn-tema-texto">Modo oscuro</span>
+                            </button>
+
+                            <button
+                                id="btn-exportar-md"
+                                type="button"
+                                class="menu-opciones-item hidden"
+                                onclick="exportarConversacionMarkdown()"
+                            >
+                                <span class="menu-opciones-icono">📥</span>
+                                <span>Descargar conversación</span>
+                            </button>
+
+                            <button
+                                id="btn-exportar-pdf"
+                                type="button"
+                                class="menu-opciones-item hidden"
+                                onclick="exportarConversacionPDF()"
+                            >
+                                <span class="menu-opciones-icono">🖨️</span>
+                                <span>Exportar a PDF</span>
+                            </button>
+
+                            <!-- Los próximos botones de opciones se agregan aquí,
+                                 siguiendo el mismo patrón .menu-opciones-item -->
+
+                        </div>
+                    </div>
                 </div>
             </header>
 

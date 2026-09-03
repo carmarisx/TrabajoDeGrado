@@ -125,6 +125,18 @@ html {
 
     border-right: 1px solid var(--border-color);
 
+    display: flex;
+
+    flex-direction: column;
+
+}
+
+.sidebar-content {
+
+    flex: 1;
+
+    min-height: 0;
+
     padding: 20px;
 
     display: flex;
@@ -141,19 +153,19 @@ html {
 
 }
 
-.sidebar::-webkit-scrollbar {
+.sidebar-content::-webkit-scrollbar {
 
     width: 10px;
 
 }
 
-.sidebar::-webkit-scrollbar-track {
+.sidebar-content::-webkit-scrollbar-track {
 
     background: transparent;
 
 }
 
-.sidebar::-webkit-scrollbar-thumb {
+.sidebar-content::-webkit-scrollbar-thumb {
 
     background-color: var(--border-color);
 
@@ -165,11 +177,50 @@ html {
 
 }
 
-.sidebar::-webkit-scrollbar-thumb:hover {
+.sidebar-content::-webkit-scrollbar-thumb:hover {
 
     background-color: var(--text-muted);
 
     background-clip: padding-box;
+
+}
+
+
+/* ============================= */
+/* AUTOR (pie fijo del sidebar) */
+/* ============================= */
+
+.author {
+
+    flex-shrink: 0;
+
+    padding: 14px 20px;
+
+    border-top: 1px solid var(--border-color);
+
+    text-align: center;
+
+    color: var(--text-muted);
+
+    font-size: 0.75rem;
+
+    line-height: 1.5;
+
+}
+
+.author span {
+
+    display: block;
+
+}
+
+.author strong {
+
+    display: block;
+
+    color: var(--text-main);
+
+    font-size: 0.8rem;
 
 }
 
@@ -555,19 +606,27 @@ html {
 }
 
 
-.theme-toggle-btn {
+/* ============================= */
+/* MENÚ "OPCIONES" (desplegable) */
+/* ============================= */
+
+.opciones-wrapper {
+
+    position: relative;
+
+}
+
+.btn-opciones {
 
     display: flex;
 
     align-items: center;
 
-    justify-content: center;
+    gap: 6px;
 
-    width: 40px;
+    padding: 9px 16px;
 
-    height: 40px;
-
-    border-radius: 50%;
+    border-radius: 8px;
 
     border: 1px solid var(--border-color);
 
@@ -575,16 +634,111 @@ html {
 
     color: var(--text-main);
 
-    font-size: 1.1rem;
+    font-family: inherit;
+
+    font-size: 0.9rem;
+
+    font-weight: 600;
 
     cursor: pointer;
 
 }
 
-
-.theme-toggle-btn:hover {
+.btn-opciones:hover {
 
     border-color: var(--primary);
+
+}
+
+.btn-opciones-icono {
+
+    font-size: 0.7rem;
+
+    transition: transform 0.15s ease;
+
+}
+
+.btn-opciones[aria-expanded="true"] .btn-opciones-icono {
+
+    transform: rotate(180deg);
+
+}
+
+.menu-opciones {
+
+    position: absolute;
+
+    top: calc(100% + 8px);
+
+    right: 0;
+
+    min-width: 230px;
+
+    background-color: var(--card-bg);
+
+    border: 1px solid var(--border-color);
+
+    border-radius: 10px;
+
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+
+    padding: 6px;
+
+    z-index: 1100;
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 2px;
+
+}
+
+.menu-opciones-item {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 10px;
+
+    width: 100%;
+
+    padding: 10px 12px;
+
+    border: none;
+
+    border-radius: 6px;
+
+    background: none;
+
+    color: var(--text-main);
+
+    font-family: inherit;
+
+    font-size: 0.9rem;
+
+    text-align: left;
+
+    cursor: pointer;
+
+}
+
+.menu-opciones-item:hover {
+
+    background-color: var(--surface-alt);
+
+}
+
+.menu-opciones-icono {
+
+    font-size: 1rem;
+
+    width: 20px;
+
+    text-align: center;
+
+    flex-shrink: 0;
 
 }
 
@@ -1090,21 +1244,23 @@ html {
 
     justify-content: center;
 
-    width: 30px;
-
-    height: 30px;
+    padding: 5px 12px;
 
     border-radius: 6px;
 
-    border: 1px solid transparent;
+    border: 1px solid var(--border-color);
 
     background: none;
 
-    font-size: 0.95rem;
+    color: var(--text-muted);
+
+    font-family: inherit;
+
+    font-size: 0.8rem;
 
     cursor: pointer;
 
-    opacity: 0.6;
+    opacity: 0.85;
 
 }
 
@@ -1120,9 +1276,27 @@ html {
 
     opacity: 1;
 
-    border-color: var(--border-color);
+    font-weight: 600;
 
-    background-color: var(--surface-alt);
+}
+
+.feedback-btn:first-child.activo {
+
+    border-color: #28a745;
+
+    color: #28a745;
+
+    background-color: rgba(40, 167, 69, 0.1);
+
+}
+
+.feedback-btn:last-child.activo {
+
+    border-color: var(--danger);
+
+    color: var(--danger);
+
+    background-color: rgba(217, 83, 79, 0.1);
 
 }
 
@@ -1144,7 +1318,9 @@ html {
 
     border-collapse: collapse;
 
-    min-width: 100%;
+    width: max-content;
+
+    max-width: none;
 
     margin: 0;
 
@@ -1160,6 +1336,10 @@ html {
     padding: 6px 10px;
 
     text-align: left;
+
+    min-width: 110px;
+
+    max-width: 320px;
 
 }
 
@@ -1512,6 +1692,34 @@ html {
     .header {
 
         gap: 12px;
+
+    }
+
+    .header-actions {
+
+        gap: 8px;
+
+    }
+
+    .btn-opciones {
+
+        padding: 8px 10px;
+
+        font-size: 0.8rem;
+
+    }
+
+    .badge {
+
+        padding: 5px 9px;
+
+        font-size: 0.72rem;
+
+    }
+
+    .menu-opciones {
+
+        min-width: 200px;
 
     }
 

@@ -21,13 +21,56 @@ function alternarTema() {
 }
 
 function actualizarIconoTema() {
-    const boton = document.getElementById("btn-tema");
+    const icono = document.querySelector("#btn-tema .menu-opciones-icono");
+    const texto = document.getElementById("btn-tema-texto");
     const esOscuro = document.body.classList.contains("dark-mode");
 
-    boton.textContent = esOscuro ? "☀️" : "🌙";
+    if (icono) icono.textContent = esOscuro ? "☀️" : "🌙";
+    if (texto) texto.textContent = esOscuro ? "Modo claro" : "Modo oscuro";
 }
 
 document.addEventListener("DOMContentLoaded", aplicarTemaGuardado);
+
+
+/* ========================================= */
+/* MENÚ DE OPCIONES (desplegable) */
+/* ========================================= */
+
+function alternarMenuOpciones() {
+    const menu = document.getElementById("menu-opciones");
+    const boton = document.getElementById("btn-opciones");
+    const seAbrio = menu.classList.toggle("hidden") === false;
+
+    boton.setAttribute("aria-expanded", seAbrio ? "true" : "false");
+}
+
+function cerrarMenuOpciones() {
+    document.getElementById("menu-opciones").classList.add("hidden");
+    document.getElementById("btn-opciones").setAttribute("aria-expanded", "false");
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    /* Cerrar el menú de opciones al hacer clic afuera, o tras elegir
+       cualquiera de sus botones */
+
+    document.addEventListener("click", event => {
+        const wrapper = document.querySelector(".opciones-wrapper");
+        if (wrapper && !wrapper.contains(event.target)) {
+            cerrarMenuOpciones();
+        }
+    });
+
+    document.querySelectorAll(".menu-opciones-item").forEach(item => {
+        item.addEventListener("click", () => {
+            /* El tema oscuro/claro se puede alternar varias veces
+               seguidas, así que ese botón no cierra el menú; el
+               resto de acciones sí lo cierran. */
+            if (item.id !== "btn-tema") {
+                cerrarMenuOpciones();
+            }
+        });
+    });
+});
 
 
 /* ========================================= */
@@ -591,13 +634,13 @@ function agregarBotonesFeedback(mensajeDiv, texto, contexto) {
     const btnUp = document.createElement("button");
     btnUp.type = "button";
     btnUp.className = "feedback-btn";
-    btnUp.textContent = "👍";
+    btnUp.textContent = "Fue útil";
     btnUp.title = "Esta respuesta fue útil";
 
     const btnDown = document.createElement("button");
     btnDown.type = "button";
     btnDown.className = "feedback-btn";
-    btnDown.textContent = "👎";
+    btnDown.textContent = "No fue útil";
     btnDown.title = "Esta respuesta no fue útil";
 
     function actualizarEstadoVisual() {

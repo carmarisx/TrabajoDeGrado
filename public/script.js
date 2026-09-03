@@ -24,7 +24,7 @@ function actualizarIconoTema() {
     const boton = document.getElementById("btn-tema");
     const esOscuro = document.body.classList.contains("dark-mode");
 
-    boton.innerText = esOscuro ? "☀️" : "🌙";
+    boton.textContent = esOscuro ? "☀️" : "🌙";
 }
 
 document.addEventListener("DOMContentLoaded", aplicarTemaGuardado);
@@ -33,10 +33,6 @@ document.addEventListener("DOMContentLoaded", aplicarTemaGuardado);
 /* ========================================= */
 /* MENÚ LATERAL EN MÓVIL (tipo cajón) */
 /* ========================================= */
-
-/* En escritorio, esta clase no tiene ningún efecto visual (el CSS
-   solo la usa dentro del media query de móvil). En móvil, controla
-   si el panel de temas se ve como una capa flotante sobre el chat. */
 
 function abrirMenuMovil() {
     document.body.classList.add("sidebar-abierta");
@@ -76,28 +72,47 @@ const topicosMatematicas = [
 
 
 /* ========================================= */
-/* ESTADO DE LA CONVERSACIÓN POR TÓPICO */
+/* HISTORIAL DEL CHAT (con persistencia) */
 /* ========================================= */
 
-/* Por cada tópico ya visitado en esta sesión se guarda:
-   - historialChat: lo que se le envía a la IA (system/user/assistant)
-   - mensajesUI: lo que se muestra en pantalla (para restaurarlo)
-   - estado: 'nuevo' | 'pendiente' | 'listo' | 'error'
-     · 'pendiente' = hay una respuesta de la IA que todavía no ha
-       llegado (o que se canceló a mitad de camino porque el usuario
-       cambió de tópico). Si el usuario vuelve a este tópico estando
-       en 'pendiente', se vuelve a pedir la respuesta automáticamente,
-       en vez de dejar el chat vacío. */
+/* Guarda, por cada tópico ya visitado, tanto el historial que se
+   envía a la IA como los mensajes ya mostrados en pantalla. Se
+   inicializa vacío y, si hay algo guardado de una sesión anterior,
+   se rellena en cargarEstadoDesdeStorage(). */
 
 const historialesPorTema = {};
 
 let temaActual = null;
 
-/* Solo puede haber UNA petición "viva" a la vez. Cada vez que se iba
-   a lanzar una nueva, se cancela la anterior con AbortController, así
-   nunca se cruzan dos respuestas ni se pisa el estado entre tópicos. */
-
 let controladorActual = null;
+
+const CLAVE_STORAGE_HISTORIALES = "tutorIA_historiales";
+const CLAVE_STORAGE_TEMA_ACTUAL = "tutorIA_temaActual";
+
+
+function guardarEstadoEnStorage() {
+    try {
+        localStorage.setItem(CLAVE_STORAGE_HISTORIALES, JSON.stringify(historialesPorTema));
+        localStorage.setItem(CLAVE_STORAGE_TEMA_ACTUAL, temaActual || "");
+    } catch (error) {
+        /* Si el navegador bloquea localStorage (modo incógnito
+           estricto, cuota llena, etc.) la app sigue funcionando
+           normalmente, solo que sin recordar el progreso. */
+        console.warn("No se pudo guardar el progreso en este navegador:", error.message);
+    }
+}
+
+function cargarEstadoDesdeStorage() {
+    try {
+        const guardado = localStorage.getItem(CLAVE_STORAGE_HISTORIALES);
+        if (guardado) {
+            const datos = JSON.parse(guardado);
+            Object.assign(historialesPorTema, datos);
+        }
+    } catch (error) {
+        console.warn("No se pudo restaurar el progreso guardado:", error.message);
+    }
+}
 
 
 /* ========================================= */
@@ -107,80 +122,147 @@ let controladorActual = null;
 function seleccionarMateria() {
     const botonMateria = document.getElementById("btn-matematicas");
     const seccionTopicos = document.getElementById("seccion-topicos");
-    const lista = document.getElementById("lista-topicos");
     const estaOculto = seccionTopicos.classList.contains("hidden");
 
     botonMateria.classList.toggle("active");
+    seccionTopicos.classList.toggle("hidden", !estaOculto);
+}
 
-    if (estaOculto) {
-        seccionTopicos.classList.remove("hidden");
 
-        if (lista.children.length === 0) {
-            /* Contenedor del eje que se está armando en este momento;
-               todos los tópicos que vengan después de un "header" se
-               agregan dentro de este contenedor, hasta encontrar el
-               siguiente header. */
+/* ========================================= */
+/* CONSTRUIR LA LISTA DE TÓPICOS (una sola vez) */
+/* ========================================= */
 
-            let grupoActual = null;
+/* Se construye apenas carga la página (no solo al hacer clic en
+   "Matemáticas Básicas"), para que los checkmarks ✓ de temas ya
+   vistos aparezcan de inmediato si hay progreso guardado. */
 
-            topicosMatematicas.forEach(item => {
-                if (item.tipo === "header") {
-                    const headerBtn = document.createElement("button");
-                    headerBtn.type = "button";
-                    headerBtn.className = "eje-header";
+function construirListaTopicos() {
+    const lista = document.getElementById("lista-topicos");
 
-                    const texto = document.createElement("span");
-                    texto.className = "eje-header-texto";
-                    texto.innerText = item.titulo;
+    if (lista.children.length > 0) return;
 
-                    const icono = document.createElement("span");
-                    icono.className = "eje-header-icono";
-                    icono.innerText = "▸";
+    let grupoActual = null;
 
-                    headerBtn.appendChild(texto);
-                    headerBtn.appendChild(icono);
+    topicosMatematicas.forEach(item => {
+        if (item.tipo === "header") {
+            const headerBtn = document.createElement("button");
+            headerBtn.type = "button";
+            headerBtn.className = "eje-header";
 
-                    const grupo = document.createElement("div");
-                    grupo.className = "grupo-topicos hidden";
+            const texto = document.createElement("span");
+            texto.className = "eje-header-texto";
+            texto.textContent = item.titulo;
 
-                    headerBtn.onclick = () => {
-                        grupo.classList.toggle("hidden");
-                        headerBtn.classList.toggle("abierto");
-                    };
+            const icono = document.createElement("span");
+            icono.className = "eje-header-icono";
+            icono.textContent = "▸";
 
-                    lista.appendChild(headerBtn);
-                    lista.appendChild(grupo);
+            headerBtn.appendChild(texto);
+            headerBtn.appendChild(icono);
 
-                    grupoActual = grupo;
-                } else {
-                    const boton = document.createElement("button");
-                    boton.className = "btn-topico";
+            const grupo = document.createElement("div");
+            grupo.className = "grupo-topicos hidden";
 
-                    const textoSpan = document.createElement("span");
-                    textoSpan.className = "btn-topico-texto";
-                    textoSpan.innerText = item.titulo;
+            headerBtn.onclick = () => {
+                grupo.classList.toggle("hidden");
+                headerBtn.classList.toggle("abierto");
+            };
 
-                    const checkSpan = document.createElement("span");
-                    checkSpan.className = "btn-topico-check hidden";
-                    checkSpan.innerText = "✓";
-                    checkSpan.title = "Ya tienes una conversación guardada en este tema";
+            lista.appendChild(headerBtn);
+            lista.appendChild(grupo);
 
-                    boton.appendChild(textoSpan);
-                    boton.appendChild(checkSpan);
+            grupoActual = grupo;
+        } else {
+            const boton = document.createElement("button");
+            boton.className = "btn-topico";
 
-                    boton.onclick = () => iniciarChatTopico(item.titulo, boton);
+            const textoSpan = document.createElement("span");
+            textoSpan.className = "btn-topico-texto";
+            textoSpan.textContent = item.titulo;
 
-                    if (grupoActual) {
-                        grupoActual.appendChild(boton);
-                    } else {
-                        lista.appendChild(boton);
-                    }
-                }
-            });
+            const checkSpan = document.createElement("span");
+            checkSpan.className = "btn-topico-check hidden";
+            checkSpan.textContent = "✓";
+            checkSpan.title = "Ya tienes una conversación guardada en este tema";
+
+            /* Si ya había una conversación guardada (de una sesión
+               anterior), el checkmark se muestra de inmediato */
+            if (historialesPorTema[item.titulo]) {
+                checkSpan.classList.remove("hidden");
+            }
+
+            boton.appendChild(textoSpan);
+            boton.appendChild(checkSpan);
+
+            boton.onclick = () => iniciarChatTopico(item.titulo, boton);
+
+            if (grupoActual) {
+                grupoActual.appendChild(boton);
+            } else {
+                lista.appendChild(boton);
+            }
         }
-    } else {
-        seccionTopicos.classList.add("hidden");
+    });
+}
+
+
+/* ========================================= */
+/* BUSCADOR DE TÓPICOS */
+/* ========================================= */
+
+function filtrarTopicos() {
+    const buscador = document.getElementById("buscador-topicos");
+    const query = buscador.value.trim().toLowerCase();
+    const lista = document.getElementById("lista-topicos");
+    const hijos = Array.from(lista.children);
+
+    if (query === "") {
+        /* Sin texto en el buscador: se vuelve al comportamiento
+           normal de acordeón (todo colapsado, todos los botones
+           visibles otra vez) */
+
+        hijos.forEach(hijo => {
+            if (hijo.classList.contains("eje-header")) {
+                hijo.classList.remove("abierto");
+            } else if (hijo.classList.contains("grupo-topicos")) {
+                hijo.classList.add("hidden");
+                hijo.querySelectorAll(".btn-topico").forEach(b => b.classList.remove("hidden"));
+            }
+        });
+
+        return;
     }
+
+    let ejeActual = null;
+
+    hijos.forEach(hijo => {
+        if (hijo.classList.contains("eje-header")) {
+            ejeActual = hijo;
+            return;
+        }
+
+        if (!hijo.classList.contains("grupo-topicos")) return;
+
+        let algunaCoincidencia = false;
+
+        hijo.querySelectorAll(".btn-topico").forEach(boton => {
+            const textoBoton = boton.querySelector(".btn-topico-texto").textContent.toLowerCase();
+            const coincide = textoBoton.includes(query);
+
+            boton.classList.toggle("hidden", !coincide);
+            if (coincide) algunaCoincidencia = true;
+        });
+
+        /* El grupo (y su eje) se despliega automáticamente mientras
+           haya una búsqueda activa con al menos una coincidencia */
+
+        hijo.classList.toggle("hidden", !algunaCoincidencia);
+
+        if (ejeActual) {
+            ejeActual.classList.toggle("abierto", algunaCoincidencia);
+        }
+    });
 }
 
 
@@ -207,6 +289,10 @@ Debes:
 - Corregir errores conceptuales del estudiante de manera clara.
 - Fomentar el pensamiento crítico.
 - Mantener las respuestas relacionadas principalmente con el tema seleccionado.
+- Mantener un tono profesional y académico, SIN usar emojis en ningún
+  momento de la respuesta (ni para decorar títulos, ni para reaccionar,
+  ni al final de las frases). El único caso permitido de símbolos
+  gráficos es la notación matemática propiamente dicha.
 
 No debes simplemente entregar una respuesta final cuando el estudiante esté resolviendo un ejercicio. Debes orientar el proceso y explicar cómo llegar a la solución.
 
@@ -249,10 +335,6 @@ Explica la información de manera estructurada y comprensible.
 /* ========================================= */
 
 function iniciarChatTopico(topico, btnElement) {
-    /* En móvil, cerrar el menú lateral apenas se elige un tema,
-       para que el chat quede visible a pantalla completa. En
-       escritorio esto no tiene ningún efecto. */
-
     cerrarMenuMovil();
 
     document.querySelectorAll(".btn-topico").forEach(boton => {
@@ -260,7 +342,7 @@ function iniciarChatTopico(topico, btnElement) {
     });
 
     btnElement.classList.add("active");
-    document.getElementById("header-title").innerText = topico;
+    document.getElementById("header-title").textContent = topico;
     document.getElementById("input-area").classList.remove("hidden");
     document.getElementById("ai-badge").classList.remove("hidden");
     document.getElementById("btn-exportar-md").classList.remove("hidden");
@@ -270,14 +352,6 @@ function iniciarChatTopico(topico, btnElement) {
 
     const chatMensajes = document.getElementById("chat-mensajes");
     chatMensajes.innerHTML = "";
-
-    /* Si es la primera vez que se visita este tópico, se crea su
-       historial desde cero (system + prompt inicial), y se le marca
-       el checkmark ✓ en el sidebar para indicar que ya tiene una
-       conversación guardada. Si ya existía, NO se toca su
-       historialChat: puede tener ya una respuesta completa, o puede
-       haber quedado a medias por un cambio de tópico anterior, y eso
-       se resuelve más abajo. */
 
     if (!historialesPorTema[topico]) {
         historialesPorTema[topico] = {
@@ -295,22 +369,17 @@ function iniciarChatTopico(topico, btnElement) {
 
     const entrada = historialesPorTema[topico];
 
-    /* Repintar en pantalla lo que ya se había mostrado antes */
-
     entrada.mensajesUI.forEach(msg => {
         agregarMensajeUI(msg.texto, msg.emisor, { topico, registro: msg });
     });
-
-    /* Si el tópico es nuevo, o quedó con una respuesta pendiente
-       (se interrumpió por un cambio de tópico anterior), se
-       (re)lanza la petición a la IA. Si ya está "listo" o terminó
-       en "error", no se vuelve a llamar a la IA automáticamente. */
 
     if (entrada.estado === "nuevo" || entrada.estado === "pendiente") {
         solicitarRespuestaIA(topico);
     } else {
         actualizarIndicadorCarga();
     }
+
+    guardarEstadoEnStorage();
 }
 
 
@@ -339,7 +408,7 @@ function enviarMensajeUsuario() {
 
 
 /* ========================================= */
-/* MANEJO DE ENTER */
+/* INICIALIZACIÓN AL CARGAR LA PÁGINA */
 /* ========================================= */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -351,6 +420,40 @@ document.addEventListener("DOMContentLoaded", () => {
             enviarMensajeUsuario();
         }
     });
+
+    const buscador = document.getElementById("buscador-topicos");
+    if (buscador) {
+        buscador.addEventListener("input", filtrarTopicos);
+    }
+
+    /* Restaurar progreso guardado de sesiones anteriores */
+
+    cargarEstadoDesdeStorage();
+    construirListaTopicos();
+
+    const temaGuardado = localStorage.getItem(CLAVE_STORAGE_TEMA_ACTUAL);
+
+    if (temaGuardado && historialesPorTema[temaGuardado]) {
+        const botonTema = Array.from(document.querySelectorAll(".btn-topico"))
+            .find(b => b.querySelector(".btn-topico-texto").textContent === temaGuardado);
+
+        if (botonTema) {
+            document.getElementById("btn-matematicas").classList.add("active");
+            document.getElementById("seccion-topicos").classList.remove("hidden");
+
+            const grupoPadre = botonTema.closest(".grupo-topicos");
+            if (grupoPadre) {
+                grupoPadre.classList.remove("hidden");
+
+                const headerDelEje = grupoPadre.previousElementSibling;
+                if (headerDelEje && headerDelEje.classList.contains("eje-header")) {
+                    headerDelEje.classList.add("abierto");
+                }
+            }
+
+            iniciarChatTopico(temaGuardado, botonTema);
+        }
+    }
 });
 
 
@@ -392,22 +495,11 @@ function convertirTextoIAaHTML(texto) {
             katexHtml = f.esDisplay ? `[${f.contenido}]` : `(${f.contenido})`;
         }
 
-        /* A diferencia de antes, la fórmula ya NO se envuelve en su
-           propio contenedor con scroll: solo se distingue si es en
-           línea o en bloque, para darle un formato de texto
-           adecuado. El único lugar donde se permite scroll horizontal
-           por fórmulas es a nivel de tabla completa (ver más abajo). */
-
         const clase = f.esDisplay ? "formula-bloque" : "formula-en-linea";
         const renderizado = `<span class="${clase}">${katexHtml}</span>`;
 
         html = html.replace(`@@FORMULA_${idx}@@`, renderizado);
     });
-
-    /* Si el markdown generó alguna tabla, se envuelve en un único
-       contenedor con scroll horizontal (una sola barra para toda la
-       tabla), en vez de que cada celda con una fórmula ancha tenga
-       su propia mini barra de scroll. */
 
     html = html.replace(/<table>/g, '<div class="tabla-scroll"><table>');
     html = html.replace(/<\/table>/g, '</table></div>');
@@ -422,12 +514,10 @@ function convertirTextoIAaHTML(texto) {
 
 function copiarAlPortapapeles(texto, boton, textoBotonNormal) {
     navigator.clipboard.writeText(texto).then(() => {
-        const original = textoBotonNormal;
-
-        boton.innerText = "¡Copiado!";
+        boton.textContent = "¡Copiado!";
 
         setTimeout(() => {
-            boton.innerText = original;
+            boton.textContent = textoBotonNormal;
         }, 1500);
 
     }).catch(err => {
@@ -435,13 +525,10 @@ function copiarAlPortapapeles(texto, boton, textoBotonNormal) {
     });
 }
 
-
-/* Recorre los bloques de código dentro de un mensaje ya pintado y
-   les agrega, arriba de cada uno, una barra con el lenguaje y un
-   botón para copiar solo ese bloque (igual que ChatGPT/Claude). */
-
 function agregarBotonesDeCodigo(mensajeDiv) {
     mensajeDiv.querySelectorAll("pre").forEach(pre => {
+        if (pre.closest(".bloque-codigo")) return;
+
         const codeEl = pre.querySelector("code");
 
         let lenguaje = "Código";
@@ -458,14 +545,14 @@ function agregarBotonesDeCodigo(mensajeDiv) {
         header.className = "bloque-codigo-header";
 
         const etiqueta = document.createElement("span");
-        etiqueta.innerText = lenguaje;
+        etiqueta.textContent = lenguaje;
 
         const btnCopiar = document.createElement("button");
         btnCopiar.type = "button";
         btnCopiar.className = "bloque-codigo-copiar";
-        btnCopiar.innerText = "Copiar";
+        btnCopiar.textContent = "Copiar";
         btnCopiar.onclick = () => {
-            const textoCodigo = codeEl ? codeEl.innerText : pre.innerText;
+            const textoCodigo = codeEl ? codeEl.textContent : pre.textContent;
             copiarAlPortapapeles(textoCodigo, btnCopiar, "Copiar");
         };
 
@@ -494,6 +581,8 @@ function enviarFeedback(topico, pregunta, respuesta, valoracion) {
 }
 
 function agregarBotonesFeedback(mensajeDiv, texto, contexto) {
+    if (mensajeDiv.querySelector(".feedback-barra")) return;
+
     const { topico, registro } = contexto;
 
     const barra = document.createElement("div");
@@ -502,13 +591,13 @@ function agregarBotonesFeedback(mensajeDiv, texto, contexto) {
     const btnUp = document.createElement("button");
     btnUp.type = "button";
     btnUp.className = "feedback-btn";
-    btnUp.innerText = "👍";
+    btnUp.textContent = "👍";
     btnUp.title = "Esta respuesta fue útil";
 
     const btnDown = document.createElement("button");
     btnDown.type = "button";
     btnDown.className = "feedback-btn";
-    btnDown.innerText = "👎";
+    btnDown.textContent = "👎";
     btnDown.title = "Esta respuesta no fue útil";
 
     function actualizarEstadoVisual() {
@@ -517,10 +606,10 @@ function agregarBotonesFeedback(mensajeDiv, texto, contexto) {
     }
 
     function valorar(valor) {
-        /* Un segundo clic sobre el mismo botón quita la valoración */
         registro.valoracion = registro.valoracion === valor ? null : valor;
 
         actualizarEstadoVisual();
+        guardarEstadoEnStorage();
 
         if (registro.valoracion) {
             enviarFeedback(topico, registro.pregunta, texto, registro.valoracion);
@@ -539,37 +628,63 @@ function agregarBotonesFeedback(mensajeDiv, texto, contexto) {
 
 
 /* ========================================= */
+/* CONSTRUCCIÓN DE MENSAJES DE LA IA (streaming) */
+/* ========================================= */
+
+function crearMensajeVacioIA() {
+    const chatMensajes = document.getElementById("chat-mensajes");
+    const mensajeDiv = document.createElement("div");
+
+    mensajeDiv.className = "message ai";
+
+    chatMensajes.appendChild(mensajeDiv);
+
+    return mensajeDiv;
+}
+
+function actualizarContenidoMensajeIA(mensajeDiv, texto) {
+    const htmlCrudo = convertirTextoIAaHTML(texto);
+    const htmlSeguro = DOMPurify.sanitize(htmlCrudo, { ADD_ATTR: ["style"] });
+
+    mensajeDiv.innerHTML = htmlSeguro;
+}
+
+function finalizarMensajeIA(mensajeDiv, texto, contexto) {
+    actualizarContenidoMensajeIA(mensajeDiv, texto);
+    agregarBotonesDeCodigo(mensajeDiv);
+
+    if (contexto && contexto.registro) {
+        agregarBotonesFeedback(mensajeDiv, texto, contexto);
+    }
+}
+
+
+/* ========================================= */
 /* AGREGAR MENSAJE A LA INTERFAZ (solo pinta) */
 /* ========================================= */
 
+/* Se usa para mensajes de usuario, de error, y para REPINTAR
+   respuestas de la IA que ya se recibieron por completo antes
+   (al restaurar un tema visitado). Las respuestas NUEVAS de la IA
+   se construyen en vivo con crearMensajeVacioIA + finalizarMensajeIA
+   (ver ejecutarPeticionIA), para lograr el efecto de streaming. */
+
 function agregarMensajeUI(texto, emisor, contexto = {}) {
     const chatContainer = document.getElementById("chat-container");
+
+    if (emisor === "ai") {
+        const mensajeDiv = crearMensajeVacioIA();
+        finalizarMensajeIA(mensajeDiv, texto, contexto);
+        return;
+    }
+
     const chatMensajes = document.getElementById("chat-mensajes");
     const mensajeDiv = document.createElement("div");
 
     mensajeDiv.className = `message ${emisor}`;
-
-    if (emisor === "ai") {
-        const htmlCrudo = convertirTextoIAaHTML(texto);
-        const htmlSeguro = DOMPurify.sanitize(htmlCrudo, { ADD_ATTR: ["style"] });
-        mensajeDiv.innerHTML = htmlSeguro;
-
-        agregarBotonesDeCodigo(mensajeDiv);
-
-        if (contexto.registro) {
-            agregarBotonesFeedback(mensajeDiv, texto, contexto);
-        }
-    } else {
-        mensajeDiv.innerText = texto;
-    }
+    mensajeDiv.textContent = texto;
 
     chatMensajes.appendChild(mensajeDiv);
-
-    /* Cuando TÚ envías un mensaje, la vista se acomoda para que tu
-       pregunta quede arriba del todo (no al fondo), dejando visible
-       hacia abajo todo el espacio para leer la respuesta de la IA
-       desde su inicio, igual que en ChatGPT. Cuando responde la IA,
-       no se mueve nada: te quedas leyendo desde donde ya estabas. */
 
     if (emisor === "user") {
         if (typeof mensajeDiv.scrollIntoView === "function") {
@@ -615,11 +730,10 @@ function construirMarkdownConversacion(topico) {
 
     entrada.mensajesUI.forEach(msg => {
         if (msg.emisor === "user") {
-            md += `### 🧑 Estudiante\n\n${msg.texto}\n\n`;
+            md += `### Estudiante\n\n${msg.texto}\n\n`;
         } else if (msg.emisor === "ai") {
-            md += `### 🤖 Tutor IA\n\n${msg.texto}\n\n`;
+            md += `### Tutor IA\n\n${msg.texto}\n\n`;
         }
-        /* Los mensajes de error no se incluyen en la exportación */
     });
 
     return md;
@@ -649,12 +763,6 @@ function exportarConversacionMarkdown() {
     descargarArchivo(nombreArchivo, md, "text/markdown;charset=utf-8");
 }
 
-/* Para el PDF se aprovecha la función de imprimir del navegador (sin
-   depender de ninguna librería externa): se aplican estilos de
-   impresión (@media print, en style.css) que ocultan el sidebar,
-   los botones y el campo de texto, dejando solo la conversación
-   lista para "Guardar como PDF" desde el diálogo de impresión. */
-
 function exportarConversacionPDF() {
     if (!temaActual) return;
     window.print();
@@ -662,14 +770,8 @@ function exportarConversacionPDF() {
 
 
 /* ========================================= */
-/* GUARDAR + MOSTRAR UN MENSAJE DE UN TÓPICO */
+/* GUARDAR + MOSTRAR UN MENSAJE (usuario / error) */
 /* ========================================= */
-
-/* Guarda el mensaje en el historial del tópico al que pertenece
-   (sin importar si el usuario sigue viéndolo o no), y solo lo
-   pinta en pantalla si ese tópico sigue siendo el que está activo.
-   Así, una respuesta "tardía" de un tópico que ya no se está viendo
-   nunca se mezcla con el tópico que el usuario tiene abierto ahora. */
 
 function mostrarMensajeDeTema(topico, texto, emisor, contexto = {}) {
     const entrada = historialesPorTema[topico];
@@ -688,16 +790,14 @@ function mostrarMensajeDeTema(topico, texto, emisor, contexto = {}) {
     if (topico === temaActual) {
         agregarMensajeUI(texto, emisor, { topico, registro });
     }
+
+    guardarEstadoEnStorage();
 }
 
 
 /* ========================================= */
 /* INDICADOR DE "ESCRIBIENDO" / BOTÓN ENVIAR */
 /* ========================================= */
-
-/* Se basa únicamente en el estado del tópico que está activo en
-   este momento, así que si una petición vieja de otro tópico
-   termina en segundo plano, no altera lo que ve el usuario ahora. */
 
 function actualizarIndicadorCarga() {
     const typingIndicator = document.getElementById("typing");
@@ -716,16 +816,8 @@ function actualizarIndicadorCarga() {
 
 
 /* ========================================= */
-/* SOLICITAR RESPUESTA A LA IA (con cancelación y "debounce") */
+/* SOLICITAR RESPUESTA A LA IA (streaming + cancelación + "debounce") */
 /* ========================================= */
-
-/* Si el usuario cambia de tópico muy rápido varias veces seguidas,
-   no tiene sentido disparar una petición real a la IA por cada clic
-   intermedio (eso gasta tokens y puede agotar el límite por minuto
-   del proveedor). Por eso se espera un instante corto antes de
-   enviar la petición de verdad: si en ese instante se vuelve a
-   pedir otra respuesta (otro cambio de tópico), se cancela el envío
-   pendiente sin haber gastado nada todavía. */
 
 const ESPERA_ANTES_DE_ENVIAR_MS = 400;
 
@@ -736,15 +828,10 @@ function solicitarRespuestaIA(topico) {
 
     if (!entrada) return;
 
-    /* Cancelar un envío que todavía no había salido */
-
     if (temporizadorPeticion) {
         clearTimeout(temporizadorPeticion);
         temporizadorPeticion = null;
     }
-
-    /* Cancelar una petición que ya está en curso (de este mismo
-       tópico o de otro) */
 
     if (controladorActual) {
         controladorActual.abort();
@@ -768,6 +855,19 @@ async function ejecutarPeticionIA(topico) {
     const miControlador = new AbortController();
     controladorActual = miControlador;
 
+    /* Si el usuario sigue viendo este tema, se prepara de una vez el
+       "cascarón" del mensaje de la IA, para irlo llenando a medida
+       que van llegando fragmentos de texto (streaming). Si ya
+       cambió de tema, no se pinta nada en pantalla, pero la
+       respuesta se sigue guardando en segundo plano igual. */
+
+    let mensajeDivStreaming = null;
+    let textoAcumulado = "";
+
+    if (topico === temaActual) {
+        mensajeDivStreaming = crearMensajeVacioIA();
+    }
+
     try {
         const response = await fetch("/api/chat", {
             method: "POST",
@@ -785,34 +885,68 @@ async function ejecutarPeticionIA(topico) {
             );
         }
 
-        const data = await response.json();
-        const respuestaIA = data.respuesta;
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        const chatContainer = document.getElementById("chat-container");
 
-        /* Se guarda cuál fue la pregunta que generó esta respuesta,
-           para poder mandarla junto con el 👍/👎 que dé el estudiante
-           y así el log de feedback tenga contexto completo. */
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            textoAcumulado += decoder.decode(value, { stream: true });
+
+            if (mensajeDivStreaming) {
+                actualizarContenidoMensajeIA(mensajeDivStreaming, textoAcumulado);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        }
+
+        /* Marca especial que el servidor agrega si la conexión se
+           cae después de que ya empezó a responder: se separa del
+           texto real antes de guardarlo. */
+
+        const marcaError = "\n\n[ERROR_STREAM]";
+        const indiceError = textoAcumulado.indexOf(marcaError);
+
+        if (indiceError !== -1) {
+            textoAcumulado = textoAcumulado.slice(0, indiceError);
+        }
 
         const preguntaAsociada =
             entrada.historialChat[entrada.historialChat.length - 1]?.content || "";
 
-        entrada.historialChat.push({ role: "assistant", content: respuestaIA });
+        entrada.historialChat.push({ role: "assistant", content: textoAcumulado });
         entrada.estado = "listo";
 
-        mostrarMensajeDeTema(topico, respuestaIA, "ai", { pregunta: preguntaAsociada });
+        const registro = {
+            texto: textoAcumulado,
+            emisor: "ai",
+            pregunta: preguntaAsociada,
+            valoracion: null
+        };
+
+        entrada.mensajesUI.push(registro);
+
+        if (mensajeDivStreaming) {
+            finalizarMensajeIA(mensajeDivStreaming, textoAcumulado, { topico, registro });
+        } else if (topico === temaActual) {
+            agregarMensajeUI(textoAcumulado, "ai", { topico, registro });
+        }
+
+        guardarEstadoEnStorage();
 
     } catch (error) {
 
         if (error.name === "AbortError") {
-            /* Petición cancelada intencionalmente porque el usuario
-               cambió de tópico. No es un error real: no se muestra
-               nada, y el tópico queda en "pendiente" para volver a
-               intentarse solo si el usuario regresa a él. */
+            if (mensajeDivStreaming) mensajeDivStreaming.remove();
             return;
         }
 
         console.error("Detalle técnico del error:", error);
 
         entrada.estado = "error";
+
+        if (mensajeDivStreaming) mensajeDivStreaming.remove();
 
         mostrarMensajeDeTema(
             topico,

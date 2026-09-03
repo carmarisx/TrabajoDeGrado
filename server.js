@@ -14,17 +14,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 /* REGISTRO (LOG) DE CONVERSACIONES */
 /* ========================================= */
 
-/* Cada intercambio con la IA, y cada valoración (👍/👎) que dé un
-   estudiante, se guarda como una línea de JSON en /logs. Este
-   registro es la base de datos del caso de estudio: permite medir
-   qué tan pertinentes fueron las respuestas, qué proveedor las
-   generó, cuánto tardaron, y qué temas se consultan más.
-
-   Nota: en un plan gratuito de hosting (como Render free tier), el
-   disco no es 100% persistente entre reinicios/redeploys, así que
-   para no perder datos conviene descargar estos archivos de forma
-   periódica durante la recolección de datos del caso de estudio. */
-
 const CARPETA_LOGS = path.join(__dirname, 'logs');
 
 try {
@@ -46,11 +35,71 @@ function registrarEnArchivo(nombreArchivo, datos) {
     });
 }
 
+
 /* ========================================= */
-/* GROQ (proveedor principal) */
+/* GROQ (proveedor principal) — con streaming */
 /* ========================================= */
 
-async function consultarGroq(messages) {
+/* Lee el cuerpo de una respuesta en formato SSE (Server-Sent Events)
+   línea por línea, y por cada fragmento de texto nuevo que llega:
+   1) lo escribe de inmediato en la respuesta HTTP hacia el navegador
+      (para el efecto de "streaming", como ChatGPT), y
+   2) lo va acumulando para devolver el texto completo al final
+      (necesario para guardarlo en el log y en el historial).
+
+   Si la conexión se corta a mitad de camino, NO se lanza un error:
+   se conserva lo que ya se alcanzó a recibir, para no arruinar una
+   respuesta que ya se empezó a mostrar en pantalla. */
+
+async function relayStreamOpenAI(response, resExpress) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    let buffer = '';
+    let textoCompleto = '';
+
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            const lineas = buffer.split('\n');
+            buffer = lineas.pop();
+
+            for (const linea of lineas) {
+                const limpia = linea.trim();
+                if (!limpia.startsWith('data:')) continue;
+
+                const payload = limpia.slice(5).trim();
+                if (payload === '[DONE]' || payload === '') continue;
+
+                try {
+                    const json = JSON.parse(payload);
+                    const delta = json.choices?.[0]?.delta?.content;
+
+                    if (delta) {
+                        textoCompleto += delta;
+                        resExpress.write(delta);
+                    }
+                } catch (errorParseo) {
+                    /* Línea incompleta o mal formada: se ignora */
+                }
+            }
+        }
+    } catch (errorDeRed) {
+        console.error('La conexión de streaming con Groq se interrumpió:', errorDeRed.message);
+    }
+
+    if (!textoCompleto) {
+        throw new Error('Groq respondió pero sin contenido de texto reconocible.');
+    }
+
+    return textoCompleto;
+}
+
+async function consultarGroqStream(messages, resExpress) {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey || apiKey.trim().length === 0) {
         throw new Error('No hay una GROQ_API_KEY configurada en el .env.');
@@ -64,7 +113,8 @@ async function consultarGroq(messages) {
         },
         body: JSON.stringify({
             model: 'openai/gpt-oss-20b',
-            messages
+            messages,
+            stream: true
         })
     });
 
@@ -73,24 +123,19 @@ async function consultarGroq(messages) {
         throw new Error(`Groq ${response.status} ${response.statusText} - ${textoError}`);
     }
 
-    const data = await response.json();
-    const respuesta = data.choices?.[0]?.message?.content;
-    if (!respuesta) {
-        throw new Error('Groq respondió pero sin contenido de texto reconocible.');
-    }
+    /* En este punto response.ok es true, pero TODAVÍA no se le ha
+       escrito nada al cliente (eso solo pasa dentro de
+       relayStreamOpenAI). Por eso, si algo falla ANTES de aquí
+       (llave inválida, límite de uso, etc.), todavía se puede
+       intentar el respaldo con Gemini sin que el usuario note nada. */
 
-    return respuesta;
+    return relayStreamOpenAI(response, resExpress);
 }
 
-/* ========================================= */
-/* GEMINI (proveedor de respaldo) */
-/* ========================================= */
 
-/* Gemini no usa el mismo formato que Groq/OpenAI:
-   - No tiene mensajes con role "system" dentro del arreglo;
-     el mensaje de sistema se manda aparte como "systemInstruction".
-   - Los roles se llaman "user" y "model" (no "assistant").
-   - El texto va dentro de "parts": [{ text: "..." }] en vez de "content". */
+/* ========================================= */
+/* GEMINI (proveedor de respaldo) — con streaming */
+/* ========================================= */
 
 function convertirMensajesAGemini(messages) {
     const mensajeSistema = messages.find(m => m.role === 'system');
@@ -104,14 +149,62 @@ function convertirMensajesAGemini(messages) {
     return { mensajeSistema, contents };
 }
 
-async function consultarGemini(messages) {
+async function relayStreamGemini(response, resExpress) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    let buffer = '';
+    let textoCompleto = '';
+
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            const lineas = buffer.split('\n');
+            buffer = lineas.pop();
+
+            for (const linea of lineas) {
+                const limpia = linea.trim();
+                if (!limpia.startsWith('data:')) continue;
+
+                const payload = limpia.slice(5).trim();
+                if (payload === '') continue;
+
+                try {
+                    const json = JSON.parse(payload);
+                    const delta = json.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                    if (delta) {
+                        textoCompleto += delta;
+                        resExpress.write(delta);
+                    }
+                } catch (errorParseo) {
+                    /* Línea incompleta o mal formada: se ignora */
+                }
+            }
+        }
+    } catch (errorDeRed) {
+        console.error('La conexión de streaming con Gemini se interrumpió:', errorDeRed.message);
+    }
+
+    if (!textoCompleto) {
+        throw new Error('Gemini respondió pero sin contenido de texto reconocible.');
+    }
+
+    return textoCompleto;
+}
+
+async function consultarGeminiStream(messages, resExpress) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey || apiKey.trim().length === 0) {
         throw new Error('No hay una GEMINI_API_KEY configurada en el .env.');
     }
 
     const { mensajeSistema, contents } = convertirMensajesAGemini(messages);
-    const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent';
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:streamGenerateContent?alt=sse';
 
     const body = { contents };
     if (mensajeSistema) {
@@ -132,25 +225,13 @@ async function consultarGemini(messages) {
         throw new Error(`Gemini ${response.status} ${response.statusText} - ${textoError}`);
     }
 
-    const data = await response.json();
-    const respuesta = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!respuesta) {
-        throw new Error('Gemini respondió pero sin contenido de texto reconocible.');
-    }
-
-    return respuesta;
+    return relayStreamGemini(response, resExpress);
 }
+
 
 /* ========================================= */
 /* DETECCIÓN DE ERRORES DE LÍMITE DE USO */
 /* ========================================= */
-
-/* Cuando ambos proveedores fallan por saturación (límite de
-   solicitudes/tokens por minuto), no tiene sentido mostrarle al
-   usuario final el JSON técnico crudo. Se detecta ese caso y se
-   muestra un mensaje amigable en su lugar, mientras que cualquier
-   otro tipo de error (configuración, credenciales, etc.) sigue
-   mostrando el detalle técnico completo, útil para depurar. */
 
 function esErrorDeLimiteDeUso(mensaje) {
     if (!mensaje) return false;
@@ -165,88 +246,96 @@ function esErrorDeLimiteDeUso(mensaje) {
 
 
 /* ========================================= */
-/* RUTA PRINCIPAL DEL CHAT */
+/* RUTA PRINCIPAL DEL CHAT (con streaming) */
 /* ========================================= */
 
 app.post('/api/chat', async (req, res) => {
     const inicio = Date.now();
+    const { messages, topico } = req.body;
 
-    try {
-        const { messages, topico } = req.body;
-        if (!messages || !Array.isArray(messages)) {
-            return res.status(400).json({
-                error: 'No se recibió un historial válido de mensajes.'
-            });
-        }
-
-        let respuestaIA;
-        let proveedorUsado;
-
-        try {
-            console.log('Consultando modelo de IA (Groq)...');
-            respuestaIA = await consultarGroq(messages);
-            proveedorUsado = 'groq';
-        } catch (errorGroq) {
-            console.warn('Groq falló, intentando con Gemini como respaldo. Motivo:', errorGroq.message);
-            try {
-                console.log('Consultando modelo de IA (Gemini, respaldo)...');
-                respuestaIA = await consultarGemini(messages);
-                proveedorUsado = 'gemini';
-            } catch (errorGemini) {
-
-                const detalleTecnico = `Groq: ${errorGroq.message} | Gemini (respaldo): ${errorGemini.message}`;
-
-                /* El detalle técnico completo siempre queda en los
-                   logs del servidor, sin importar qué se le muestre
-                   al usuario final. */
-
-                console.error('Fallaron ambos proveedores de IA. Detalle técnico:', detalleTecnico);
-
-                const esLimiteDeUso =
-                    esErrorDeLimiteDeUso(errorGroq.message) ||
-                    esErrorDeLimiteDeUso(errorGemini.message);
-
-                registrarEnArchivo('conversaciones.jsonl', {
-                    topico: topico || null,
-                    pregunta: messages[messages.length - 1]?.content || null,
-                    respuesta: null,
-                    proveedor: null,
-                    exito: false,
-                    error: detalleTecnico,
-                    duracionMs: Date.now() - inicio
-                });
-
-                if (esLimiteDeUso) {
-                    throw new Error(
-                        'Estamos recibiendo muchas solicitudes en este momento. Por favor espera unos segundos e intenta de nuevo.'
-                    );
-                }
-
-                throw new Error(detalleTecnico);
-
-            }
-        }
-
-        console.log(`Respuesta obtenida con: ${proveedorUsado}`);
-
-        registrarEnArchivo('conversaciones.jsonl', {
-            topico: topico || null,
-            pregunta: messages[messages.length - 1]?.content || null,
-            respuesta: respuestaIA,
-            proveedor: proveedorUsado,
-            exito: true,
-            duracionMs: Date.now() - inicio
-        });
-
-        res.json({ respuesta: respuestaIA });
-
-    } catch (error) {
-        console.error('Error al conectar con la IA:', error);
-        res.status(500).json({
-            error: 'No fue posible obtener una respuesta del modelo de IA.',
-            detalle: error.message
+    if (!messages || !Array.isArray(messages)) {
+        return res.status(400).json({
+            error: 'No se recibió un historial válido de mensajes.'
         });
     }
+
+    let respuestaCompleta;
+    let proveedorUsado;
+
+    try {
+        console.log('Consultando modelo de IA (Groq, streaming)...');
+
+        /* La respuesta se manda como texto plano en pedazos (chunked),
+           no como JSON: por eso el encabezado se define aquí, apenas
+           se confirma que sí se va a poder responder. */
+
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache');
+
+        respuestaCompleta = await consultarGroqStream(messages, res);
+        proveedorUsado = 'groq';
+
+    } catch (errorGroq) {
+        console.warn('Groq falló, intentando con Gemini como respaldo. Motivo:', errorGroq.message);
+
+        try {
+            console.log('Consultando modelo de IA (Gemini, respaldo, streaming)...');
+            respuestaCompleta = await consultarGeminiStream(messages, res);
+            proveedorUsado = 'gemini';
+
+        } catch (errorGemini) {
+
+            const detalleTecnico = `Groq: ${errorGroq.message} | Gemini (respaldo): ${errorGemini.message}`;
+
+            console.error('Fallaron ambos proveedores de IA. Detalle técnico:', detalleTecnico);
+
+            registrarEnArchivo('conversaciones.jsonl', {
+                topico: topico || null,
+                pregunta: messages[messages.length - 1]?.content || null,
+                respuesta: null,
+                proveedor: null,
+                exito: false,
+                error: detalleTecnico,
+                duracionMs: Date.now() - inicio
+            });
+
+            const esLimiteDeUso =
+                esErrorDeLimiteDeUso(errorGroq.message) ||
+                esErrorDeLimiteDeUso(errorGemini.message);
+
+            const mensajeFinal = esLimiteDeUso
+                ? 'Estamos recibiendo muchas solicitudes en este momento. Por favor espera unos segundos e intenta de nuevo.'
+                : detalleTecnico;
+
+            /* Si Groq alcanzó a escribir algo antes de fallar del todo
+               (caso raro), ya no se puede mandar un JSON de error
+               normal porque los encabezados de streaming ya se
+               enviaron. Se maneja cada caso por separado. */
+
+            if (!res.headersSent) {
+                return res.status(500).json({
+                    error: 'No fue posible obtener una respuesta del modelo de IA.',
+                    detalle: mensajeFinal
+                });
+            }
+
+            res.end(`\n\n[ERROR_STREAM]${mensajeFinal}`);
+            return;
+        }
+    }
+
+    console.log(`Respuesta obtenida con: ${proveedorUsado}`);
+
+    registrarEnArchivo('conversaciones.jsonl', {
+        topico: topico || null,
+        pregunta: messages[messages.length - 1]?.content || null,
+        respuesta: respuestaCompleta,
+        proveedor: proveedorUsado,
+        exito: true,
+        duracionMs: Date.now() - inicio
+    });
+
+    res.end();
 });
 
 

@@ -12,9 +12,7 @@
   "dependencies": {
     "dotenv": "^16.4.7",
     "express": "^4.22.2",
-    "mammoth": "^1.12.2",
-    "multer": "^2.3.0",
-    "pdf-parse": "^2.4.5"
+    "express-rate-limit": "^8.7.0"
   },
   "keywords": [],
   "type": "commonjs"

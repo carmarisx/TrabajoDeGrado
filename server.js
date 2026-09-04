@@ -3,12 +3,75 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+/* Necesario para que, al desplegar detrás de un proxy (como Render),
+   el límite de peticiones se calcule por la IP real de cada visitante
+   y no por la IP interna del proxy (que sería la misma para todos). */
+
+app.set('trust proxy', 1);
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+
+/* ========================================= */
+/* PROTECCIÓN CONTRA ABUSO (rate limiting) */
+/* ========================================= */
+
+/* Máximo 20 mensajes por minuto por IP hacia la IA. Sin esto,
+   cualquiera que encuentre la URL pública podría agotar la cuota de
+   Groq/Gemini con peticiones ilimitadas (justo el día de una
+   sustentación, por ejemplo). */
+
+const limitadorChat = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        error: 'Estás enviando mensajes muy rápido. Espera un minuto e intenta de nuevo.'
+    }
+});
+
+/* El feedback (👍/👎) es más liviano, pero igual conviene ponerle
+   un techo generoso para que no se pueda inundar el log con spam. */
+
+const limitadorFeedback = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        error: 'Demasiadas valoraciones seguidas. Espera un momento.'
+    }
+});
+
+
+/* ========================================= */
+/* LÍMITE DE LONGITUD DE MENSAJE */
+/* ========================================= */
+
+/* Evita que alguien pegue un párrafo gigante y dispare el consumo
+   de tokens de una sola vez. Solo se valida el ÚLTIMO mensaje del
+   arreglo (el que se acaba de escribir), no todo el historial: el
+   prompt inicial que arma la propia app, o una conversación larga
+   ya acumulada, no deben quedar bloqueados por este límite. */
+
+const LIMITE_CARACTERES_MENSAJE = 1000;
+
+function mensajeDemasiadoLargo(messages) {
+    const ultimo = messages[messages.length - 1];
+    return (
+        ultimo &&
+        typeof ultimo.content === 'string' &&
+        ultimo.content.length > LIMITE_CARACTERES_MENSAJE
+    );
+}
+
 
 /* ========================================= */
 /* REGISTRO (LOG) DE CONVERSACIONES */
@@ -249,13 +312,19 @@ function esErrorDeLimiteDeUso(mensaje) {
 /* RUTA PRINCIPAL DEL CHAT (con streaming) */
 /* ========================================= */
 
-app.post('/api/chat', async (req, res) => {
+app.post('/api/chat', limitadorChat, async (req, res) => {
     const inicio = Date.now();
     const { messages, topico } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
         return res.status(400).json({
             error: 'No se recibió un historial válido de mensajes.'
+        });
+    }
+
+    if (mensajeDemasiadoLargo(messages)) {
+        return res.status(400).json({
+            error: `Tu mensaje es demasiado largo (máximo ${LIMITE_CARACTERES_MENSAJE} caracteres). Por favor acórtalo e intenta de nuevo.`
         });
     }
 
@@ -343,7 +412,7 @@ app.post('/api/chat', async (req, res) => {
 /* RUTA DE VALORACIÓN (👍 / 👎) */
 /* ========================================= */
 
-app.post('/api/feedback', (req, res) => {
+app.post('/api/feedback', limitadorFeedback, (req, res) => {
     const { topico, pregunta, respuesta, valoracion } = req.body;
 
     if (valoracion !== 'up' && valoracion !== 'down') {

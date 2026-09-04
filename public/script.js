@@ -436,6 +436,11 @@ function enviarMensajeUsuario() {
 
     if (mensaje === "" || !temaActual) return;
 
+    /* Defensa extra por si el límite del atributo maxlength del
+       input llegara a saltarse por algún medio (el servidor igual
+       lo vuelve a validar de todas formas). */
+    if (mensaje.length > 1000) return;
+
     const topico = temaActual;
     const entrada = historialesPorTema[topico];
 
@@ -445,6 +450,12 @@ function enviarMensajeUsuario() {
     mostrarMensajeDeTema(topico, mensaje, "user");
 
     inputElement.value = "";
+
+    const contador = document.getElementById("contador-caracteres");
+    if (contador) {
+        contador.textContent = "0 / 1000";
+        contador.classList.remove("cerca-del-limite");
+    }
 
     solicitarRespuestaIA(topico);
 }
@@ -462,6 +473,16 @@ document.addEventListener("DOMContentLoaded", () => {
             event.preventDefault();
             enviarMensajeUsuario();
         }
+    });
+
+    const LIMITE_CARACTERES_MENSAJE = 1000;
+    const contador = document.getElementById("contador-caracteres");
+
+    input.addEventListener("input", () => {
+        const longitud = input.value.length;
+
+        contador.textContent = `${longitud} / ${LIMITE_CARACTERES_MENSAJE}`;
+        contador.classList.toggle("cerca-del-limite", longitud >= LIMITE_CARACTERES_MENSAJE * 0.9);
     });
 
     const buscador = document.getElementById("buscador-topicos");

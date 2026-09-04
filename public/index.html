@@ -194,12 +194,13 @@
             <!-- Área para escribir -->
             <div class="input-area hidden" id="input-area">
                 <div class="input-area-inner">
-                    <input type="text" id="user-input"
+                    <input type="text" id="user-input" maxlength="1000"
                         placeholder="Escribe tu duda, pide un ejemplo o solicita un ejercicio..." autocomplete="off">
                     <button id="btn-enviar" onclick="enviarMensajeUsuario()">
                         Enviar
                     </button>
                 </div>
+                <span id="contador-caracteres" class="contador-caracteres">0 / 1000</span>
             </div>
         </main>
     </div>

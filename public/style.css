@@ -714,6 +714,10 @@ html {
 
     color: var(--text-main);
 
+    text-decoration: none;
+
+    box-sizing: border-box;
+
     font-family: inherit;
 
     font-size: 0.9rem;
@@ -739,6 +743,18 @@ html {
     text-align: center;
 
     flex-shrink: 0;
+
+}
+
+.menu-opciones-item-peligro {
+
+    color: var(--danger);
+
+}
+
+.menu-opciones-item-peligro:hover {
+
+    background-color: rgba(217, 83, 79, 0.1);
 
 }
 
@@ -1224,6 +1240,49 @@ html {
 }
 
 
+/* Preguntas sugeridas (chips) debajo de la respuesta más reciente */
+
+.chips-sugeridos {
+
+    display: flex;
+
+    flex-wrap: wrap;
+
+    gap: 8px;
+
+    margin-top: 14px;
+
+}
+
+.chip-sugerido {
+
+    padding: 7px 14px;
+
+    border-radius: 999px;
+
+    border: 1px solid var(--border-color);
+
+    background-color: var(--bg-color);
+
+    color: var(--text-main);
+
+    font-family: inherit;
+
+    font-size: 0.82rem;
+
+    cursor: pointer;
+
+}
+
+.chip-sugerido:hover {
+
+    border-color: var(--primary);
+
+    color: var(--primary);
+
+}
+
+
 /* Botones de valoración (👍 / 👎) al final de cada respuesta de la IA */
 
 .feedback-barra {
@@ -1365,6 +1424,24 @@ html {
 .message.ai .formula-en-linea {
 
     display: inline;
+
+}
+
+/* Última instancia, cuando ni la reparación automática logra que
+   KaTeX entienda la fórmula: se muestra como código, no como texto
+   normal roto en medio de la frase */
+
+.formula-no-renderizada {
+
+    background-color: var(--surface-alt);
+
+    padding: 1px 6px;
+
+    border-radius: 4px;
+
+    font-size: 0.85em;
+
+    color: var(--text-muted);
 
 }
 
@@ -1891,6 +1968,7 @@ html {
     .input-area,
     .typing-indicator,
     .feedback-barra,
+    .chips-sugeridos,
     .bloque-codigo-copiar {
 
         display: none !important;

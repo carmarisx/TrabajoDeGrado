@@ -390,6 +390,7 @@ function iniciarChatTopico(topico, btnElement) {
     document.getElementById("ai-badge").classList.remove("hidden");
     document.getElementById("btn-exportar-md").classList.remove("hidden");
     document.getElementById("btn-exportar-pdf").classList.remove("hidden");
+    document.getElementById("btn-reiniciar-tema").classList.remove("hidden");
 
     temaActual = topico;
 
@@ -412,8 +413,14 @@ function iniciarChatTopico(topico, btnElement) {
 
     const entrada = historialesPorTema[topico];
 
-    entrada.mensajesUI.forEach(msg => {
-        agregarMensajeUI(msg.texto, msg.emisor, { topico, registro: msg });
+    entrada.mensajesUI.forEach((msg, indice) => {
+        const esUltimo = indice === entrada.mensajesUI.length - 1;
+
+        agregarMensajeUI(msg.texto, msg.emisor, {
+            topico,
+            registro: msg,
+            mostrarChips: esUltimo && msg.emisor === "ai" && entrada.estado === "listo"
+        });
     });
 
     if (entrada.estado === "nuevo" || entrada.estado === "pendiente") {
@@ -423,6 +430,45 @@ function iniciarChatTopico(topico, btnElement) {
     }
 
     guardarEstadoEnStorage();
+}
+
+
+/* ========================================= */
+/* REINICIAR EL TEMA ACTUAL */
+/* ========================================= */
+
+/* Borra por completo el historial (tanto el que se le envía a la IA
+   como lo que se ve en pantalla) del tema que se está viendo en este
+   momento, y vuelve a generar la introducción desde cero. Útil si
+   una conversación quedó "dañada" o el estudiante simplemente quiere
+   empezar de nuevo en ese tema puntual, sin afectar los demás. */
+
+function reiniciarTemaActual() {
+    if (!temaActual) return;
+
+    const confirmado = window.confirm(
+        `¿Reiniciar la conversación de "${temaActual}"?\n\nSe perderá todo el historial de este tema (los demás temas no se ven afectados).`
+    );
+
+    if (!confirmado) return;
+
+    if (controladorActual) {
+        controladorActual.abort();
+        controladorActual = null;
+    }
+
+    delete historialesPorTema[temaActual];
+    guardarEstadoEnStorage();
+
+    const botonTema = Array.from(document.querySelectorAll(".btn-topico"))
+        .find(b => b.querySelector(".btn-topico-texto").textContent === temaActual);
+
+    if (botonTema) {
+        const check = botonTema.querySelector(".btn-topico-check");
+        if (check) check.classList.add("hidden");
+
+        iniciarChatTopico(temaActual, botonTema);
+    }
 }
 
 
@@ -445,6 +491,10 @@ function enviarMensajeUsuario() {
     const entrada = historialesPorTema[topico];
 
     if (!entrada) return;
+
+    /* Al hacer una pregunta nueva, las sugerencias de la respuesta
+       anterior ya no aplican */
+    document.querySelectorAll(".chips-sugeridos").forEach(el => el.remove());
 
     entrada.historialChat.push({ role: "user", content: mensaje });
     mostrarMensajeDeTema(topico, mensaje, "user");
@@ -526,6 +576,31 @@ document.addEventListener("DOMContentLoaded", () => {
 /* (markdown + fórmulas matemáticas LaTeX) */
 /* ========================================= */
 
+/* La IA a veces comete pequeños errores de sintaxis LaTeX que hacen
+   que KaTeX no pueda interpretar la fórmula (el más común: escribir
+   \left{ o \right} sin escapar la llave). Aquí se corrigen los
+   casos más frecuentes ANTES de intentar renderizar, para no tener
+   que mostrarle al estudiante código LaTeX roto. */
+
+function repararLatexComun(contenido) {
+    let reparado = contenido;
+
+    reparado = reparado.replace(/\\left\{/g, "\\left\\{");
+    reparado = reparado.replace(/\\right\}/g, "\\right\\}");
+
+    return reparado;
+}
+
+/* Convierte texto plano a texto seguro para insertar dentro de HTML
+   (usado como último recurso, cuando ni siquiera la reparación
+   anterior logra que KaTeX renderice la fórmula). */
+
+function escaparHtml(texto) {
+    const contenedor = document.createElement("div");
+    contenedor.textContent = texto;
+    return contenedor.innerHTML;
+}
+
 function convertirTextoIAaHTML(texto) {
     const formulas = [];
 
@@ -548,15 +623,17 @@ function convertirTextoIAaHTML(texto) {
 
     formulas.forEach((f, idx) => {
         let katexHtml;
+        const contenidoReparado = repararLatexComun(f.contenido);
 
         try {
-            katexHtml = katex.renderToString(f.contenido, {
+            katexHtml = katex.renderToString(contenidoReparado, {
                 throwOnError: false,
                 displayMode: f.esDisplay,
                 output: "html"
             });
         } catch (e) {
-            katexHtml = f.esDisplay ? `[${f.contenido}]` : `(${f.contenido})`;
+            console.warn("No se pudo renderizar una fórmula LaTeX:", f.contenido, e.message);
+            katexHtml = `<code class="formula-no-renderizada">${escaparHtml(f.contenido)}</code>`;
         }
 
         const clase = f.esDisplay ? "formula-bloque" : "formula-en-linea";
@@ -720,6 +797,51 @@ function finalizarMensajeIA(mensajeDiv, texto, contexto) {
     if (contexto && contexto.registro) {
         agregarBotonesFeedback(mensajeDiv, texto, contexto);
     }
+
+    if (contexto && contexto.mostrarChips && contexto.topico) {
+        agregarChipsSugeridos(mensajeDiv, contexto.topico);
+    }
+}
+
+
+/* ========================================= */
+/* PREGUNTAS SUGERIDAS (chips) */
+/* ========================================= */
+
+/* Solo se muestran debajo de la respuesta MÁS RECIENTE de la IA,
+   para reducir la fricción de tener que escribir una pregunta de
+   seguimiento desde cero. Al elegir una, se envía de inmediato como
+   si el estudiante la hubiera escrito. */
+
+const PREGUNTAS_SUGERIDAS = [
+    "Dame un ejercicio",
+    "Explícalo más simple",
+    "Otro ejemplo",
+    "¿Puedes profundizar en esto?"
+];
+
+function agregarChipsSugeridos(mensajeDiv, topico) {
+    const contenedor = document.createElement("div");
+    contenedor.className = "chips-sugeridos";
+
+    PREGUNTAS_SUGERIDAS.forEach(texto => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "chip-sugerido";
+        chip.textContent = texto;
+
+        chip.onclick = () => {
+            if (topico !== temaActual) return;
+
+            const inputElement = document.getElementById("user-input");
+            inputElement.value = texto;
+            enviarMensajeUsuario();
+        };
+
+        contenedor.appendChild(chip);
+    });
+
+    mensajeDiv.appendChild(contenedor);
 }
 
 
@@ -992,9 +1114,9 @@ async function ejecutarPeticionIA(topico) {
         entrada.mensajesUI.push(registro);
 
         if (mensajeDivStreaming) {
-            finalizarMensajeIA(mensajeDivStreaming, textoAcumulado, { topico, registro });
+            finalizarMensajeIA(mensajeDivStreaming, textoAcumulado, { topico, registro, mostrarChips: true });
         } else if (topico === temaActual) {
-            agregarMensajeUI(textoAcumulado, "ai", { topico, registro });
+            agregarMensajeUI(textoAcumulado, "ai", { topico, registro, mostrarChips: true });
         }
 
         guardarEstadoEnStorage();

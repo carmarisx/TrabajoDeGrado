@@ -98,27 +98,6 @@ function registrarEnArchivo(nombreArchivo, datos) {
     });
 }
 
-function leerJsonl(nombreArchivo) {
-    const ruta = path.join(CARPETA_LOGS, nombreArchivo);
-
-    if (!fs.existsSync(ruta)) return [];
-
-    const contenido = fs.readFileSync(ruta, 'utf-8');
-
-    return contenido
-        .split('\n')
-        .map(linea => linea.trim())
-        .filter(linea => linea.length > 0)
-        .map(linea => {
-            try {
-                return JSON.parse(linea);
-            } catch (error) {
-                return null;
-            }
-        })
-        .filter(Boolean);
-}
-
 
 /* ========================================= */
 /* GROQ (proveedor principal) — con streaming */
@@ -450,69 +429,6 @@ app.post('/api/feedback', limitadorFeedback, (req, res) => {
     });
 
     res.json({ ok: true });
-});
-
-/* ========================================= */
-/* ESTADÍSTICAS (para el panel /estadisticas.html) */
-/* ========================================= */
-
-/* Solo devuelve datos AGREGADOS (conteos, promedios, porcentajes) —
-   nunca el texto de preguntas o respuestas individuales — para no
-   exponer conversaciones puntuales de ningún estudiante. */
-
-app.get('/api/estadisticas', (req, res) => {
-    try {
-        const conversaciones = leerJsonl('conversaciones.jsonl');
-        const feedback = leerJsonl('feedback.jsonl');
-
-        const exitosos = conversaciones.filter(c => c.exito);
-        const fallidos = conversaciones.filter(c => !c.exito);
-
-        const tiempoPromedioMs = exitosos.length
-            ? Math.round(exitosos.reduce((acc, c) => acc + (c.duracionMs || 0), 0) / exitosos.length)
-            : 0;
-
-        const porProveedor = {};
-        exitosos.forEach(c => {
-            const proveedor = c.proveedor || 'desconocido';
-            porProveedor[proveedor] = (porProveedor[proveedor] || 0) + 1;
-        });
-
-        const conteoPorTema = {};
-        conversaciones.forEach(c => {
-            const tema = c.topico || 'Sin tema';
-            conteoPorTema[tema] = (conteoPorTema[tema] || 0) + 1;
-        });
-
-        const temasMasConsultados = Object.entries(conteoPorTema)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10)
-            .map(([topico, cantidad]) => ({ topico, cantidad }));
-
-        const positivos = feedback.filter(f => f.valoracion === 'up').length;
-        const negativos = feedback.filter(f => f.valoracion === 'down').length;
-        const totalFeedback = positivos + negativos;
-
-        res.json({
-            totalIntercambios: conversaciones.length,
-            exitosos: exitosos.length,
-            fallidos: fallidos.length,
-            tiempoPromedioMs,
-            porProveedor,
-            temasMasConsultados,
-            totalFeedback,
-            positivos,
-            negativos,
-            porcentajeUtil: totalFeedback ? Math.round((positivos / totalFeedback) * 100) : null
-        });
-
-    } catch (error) {
-        console.error('Error calculando estadísticas:', error);
-        res.status(500).json({
-            error: 'No se pudieron calcular las estadísticas.',
-            detalle: error.message
-        });
-    }
 });
 
 

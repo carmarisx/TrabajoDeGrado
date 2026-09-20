@@ -339,8 +339,6 @@ Debes:
 
 No debes simplemente entregar una respuesta final cuando el estudiante esté resolviendo un ejercicio. Debes orientar el proceso y explicar cómo llegar a la solución.
 
-Cuando sea apropiado, finaliza proponiendo un ejercicio, un ejemplo adicional o preguntando al estudiante qué parte del tema desea profundizar.
-
 Idioma y manejo de mensajes fuera de tema (muy importante):
 - Responde SIEMPRE en español, sin importar el contenido o el idioma del mensaje del estudiante.
 - Si el estudiante escribe un saludo, algo casual, una pregunta personal o cualquier cosa que no tenga que ver con Matemáticas Básicas, respóndele brevemente y con amabilidad en español, y redirígelo de vuelta hacia el tema de la materia.
@@ -811,7 +809,8 @@ function finalizarMensajeIA(mensajeDiv, texto, contexto) {
 /* Solo se muestran debajo de la respuesta MÁS RECIENTE de la IA,
    para reducir la fricción de tener que escribir una pregunta de
    seguimiento desde cero. Al elegir una, se envía de inmediato como
-   si el estudiante la hubiera escrito. */
+   si el estudiante la hubiera escrito. Siempre son las mismas
+   preguntas predeterminadas, sin depender de que la IA las genere. */
 
 const PREGUNTAS_SUGERIDAS = [
     "Dame un ejercicio",
